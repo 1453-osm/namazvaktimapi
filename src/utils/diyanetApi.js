@@ -120,7 +120,7 @@ const getCities = async (stateId) => {
 
 // Namaz vakitleri için tarih aralığını getir
 const getPrayerTimeDateRange = async () => {
-  return makeApiRequest('/api/PrayerTime/DateRange');
+  return makeApiRequest('/api/PrayerTime/DateRange', 'POST');
 };
 
 // Günlük içerik getir

@@ -154,7 +154,7 @@ const getPrayerTimesByDateRange = async (req, res) => {
             monthEndDate
           );
           
-          if (prayerTimesResponse && prayerTimesResponse.isSuccess && prayerTimesResponse.data) {
+          if (prayerTimesResponse && prayerTimesResponse.success && prayerTimesResponse.data) {
             // Her günü veritabanına kaydet
             const savePromises = prayerTimesResponse.data.map(async (pt) => {
               return await prayerTimeModel.createPrayerTime(
