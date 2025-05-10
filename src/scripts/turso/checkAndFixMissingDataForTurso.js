@@ -211,12 +211,12 @@ async function checkAndFixPrayerTimes() {
                   args: [
                     city.id,
                     prayerTime.MiladiTarih,
-                    prayerTime.Imsak,
-                    prayerTime.Gunes,
-                    prayerTime.Ogle,
-                    prayerTime.Ikindi,
-                    prayerTime.Aksam,
-                    prayerTime.Yatsi,
+                    prayerTime.Imsak || null,
+                    prayerTime.Gunes || null,
+                    prayerTime.Ogle || null,
+                    prayerTime.Ikindi || null,
+                    prayerTime.Aksam || null,
+                    prayerTime.Yatsi || null,
                     prayerTime.Kible || null,
                     prayerTime.MiladiTarih || null,
                     prayerTime.HicriTarih || null
@@ -224,7 +224,7 @@ async function checkAndFixPrayerTimes() {
                 });
                 savedCount++;
               } catch (err) {
-                console.error(`Namaz vakti kaydedilemedi: ${city.name}, ${prayerTime.MiladiTarih}`, err.message);
+                console.error(`Namaz vakti kaydedilemedi: ${city.name}, ${prayerTime?.MiladiTarih || 'undefined'}`, err.message);
               }
             }
             

@@ -43,6 +43,12 @@ const createPrayerTimesInBulk = async (cityId, prayerTimesArray) => {
   
   for (const item of prayerTimesArray) {
     try {
+      // Tarih kontrolü yap, eğer MiladiTarih undefined ise kaydetme
+      if (!item || !item.MiladiTarih) {
+        console.error(`Kayıt hatası (ilçe ID: ${cityId}): Tarih bilgisi eksik veya geçersiz.`);
+        continue;
+      }
+
       const query = `
         INSERT OR REPLACE INTO prayer_times 
         (city_id, prayer_date, fajr, sunrise, dhuhr, asr, maghrib, isha, qibla, gregorian_date, hijri_date, updated_at)
@@ -54,12 +60,12 @@ const createPrayerTimesInBulk = async (cityId, prayerTimesArray) => {
         args: [
           cityId,
           item.MiladiTarih,
-          item.Imsak,
-          item.Gunes,
-          item.Ogle,
-          item.Ikindi,
-          item.Aksam,
-          item.Yatsi,
+          item.Imsak || null,
+          item.Gunes || null,
+          item.Ogle || null,
+          item.Ikindi || null,
+          item.Aksam || null,
+          item.Yatsi || null,
           item.Kible || null,
           item.MiladiTarih || null,
           item.HicriTarih || null
@@ -68,7 +74,7 @@ const createPrayerTimesInBulk = async (cityId, prayerTimesArray) => {
       
       savedItems.push(item);
     } catch (error) {
-      console.error(`Kayıt hatası (ilçe ID: ${cityId}, tarih: ${item.MiladiTarih}):`, error.message);
+      console.error(`Kayıt hatası (ilçe ID: ${cityId}, tarih: ${item?.MiladiTarih || 'undefined'}):`, error.message);
     }
   }
   
