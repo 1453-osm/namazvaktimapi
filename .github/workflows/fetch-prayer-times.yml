@@ -31,6 +31,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
+      - name: Test Database Connection
+        run: |
+          echo "Veritabanı bağlantısı test ediliyor..."
+          echo "DATABASE_URL değişkeni: ${{ env.DATABASE_URL != '' && 'TANIMLANMIŞ ✅' || 'TANIMLANMAMIŞ ❌' }}" 
+          node src/scripts/testDbConnection.js
+
+      - name: Set up database schema
+        run: |
+          echo "Veritabanı şeması hazırlanıyor..."
+          node src/config/setupDb.js
+        timeout-minutes: 10
+
       - name: Check if next year data is available
         id: check-data
         run: |
@@ -87,8 +99,38 @@ jobs:
       
       - name: Fetch yearly prayer times data
         if: ${{ steps.check-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true' }}
-        run: node src/scripts/fetchPrayerTimes.js
+        run: |
+          echo "Namaz vakitlerini çekme işlemi başlatılıyor..."
+          echo "DATABASE_URL: ${{ env.DATABASE_URL != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
+          echo "Komut: node src/scripts/fetchPrayerTimes.js"
+          
+          # Lokasyon verilerini kontrol et ve gerekirse indir
+          echo "Lokasyon verileri kontrol ediliyor..."
+          COUNTRIES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM countries'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } finally { db.pool.end(); } }; check();")
+          
+          if [ "$COUNTRIES_COUNT" -eq "0" ]; then
+            echo "Ülke verileri bulunamadı, indiriliyor..."
+            node src/scripts/fetchCountries.js
+            
+            echo "Şehir verileri indiriliyor..."
+            node src/scripts/fetchStates.js
+            
+            echo "İlçe verileri indiriliyor..."
+            node src/scripts/fetchCities.js
+          else
+            echo "Lokasyon verileri zaten mevcut (${COUNTRIES_COUNT} ülke)."
+          fi
+          
+          # Namaz vakitlerini indir
+          NODE_OPTIONS="--max-old-space-size=4096" node src/scripts/fetchPrayerTimes.js
         timeout-minutes: 240  # 4 saat timeout (uzun bir işlem olabilir)
+      
+      - name: Test prayer times data
+        if: ${{ steps.check-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true' }}
+        run: |
+          echo "Veritabanındaki namaz vakitleri sayısı kontrol ediliyor..."
+          PRAYER_TIMES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('Hata: ' + e.message); } finally { db.pool.end(); } }; check();")
+          echo "Namaz vakitleri sayısı: ${PRAYER_TIMES_COUNT}"
       
       - name: Handle data not available
         if: ${{ steps.check-data.outputs.has_next_year_data == 'false' && github.event.inputs.force_update == 'false' }}
@@ -100,5 +142,6 @@ jobs:
       - name: Create summary
         if: ${{ steps.check-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true' }}
         run: |
-          echo "Yıllık namaz vakitleri başarıyla çekildi ve veritabanına kaydedildi." >> $GITHUB_STEP_SUMMARY
-          echo "İşlem tamamlandı." >> $GITHUB_STEP_SUMMARY 
+          echo "Yıllık namaz vakitleri işlemi tamamlandı." >> $GITHUB_STEP_SUMMARY
+          PRAYER_TIMES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } finally { db.pool.end(); } }; check();")
+          echo "Veritabanındaki toplam namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY 
