@@ -75,6 +75,17 @@ CREATE TABLE IF NOT EXISTS daily_contents (
   UNIQUE (content_date, content_type)
 );
 
+-- Güncelleme kayıtları tablosu
+CREATE TABLE IF NOT EXISTS update_logs (
+  id SERIAL PRIMARY KEY,
+  update_type VARCHAR(50) NOT NULL, -- 'yearly', 'emergency', etc.
+  update_year INTEGER NOT NULL,
+  status VARCHAR(50) NOT NULL, -- 'completed', 'pending', 'failed'
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(update_type, update_year)
+);
+
 -- Güncelleme işlemlerini tetiklemek için trigger fonksiyonu
 CREATE OR REPLACE FUNCTION update_timestamp()
 RETURNS TRIGGER AS $$
@@ -107,4 +118,8 @@ FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
 
 CREATE TRIGGER update_daily_contents_timestamp
 BEFORE UPDATE ON daily_contents
+FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+
+CREATE TRIGGER update_logs_timestamp
+BEFORE UPDATE ON update_logs
 FOR EACH ROW EXECUTE PROCEDURE update_timestamp(); 

@@ -65,18 +65,31 @@ Geliştirme modu için:
 npm run dev
 ```
 
-## Veri Güncelleme
+## Veri Güncelleme Stratejisi
 
-Namaz vakitleri verisini düzenli olarak güncellemek için planlayıcıyı kullanabilirsiniz:
+Namaz vakitleri verisi yılda bir kez toplu olarak güncellenir ve veritabanında saklanır. Bu sayede API istekleri hızlı yanıt verir ve API istek sınırlarına uyulur.
+
+### Yıllık Güncelleme Planı
 
 ```
 npm run schedule-updates
 ```
 
-Bu komut:
-- Her gün veri eksikliği kontrolü yapar ve gerekirse günceller
-- Her ayın 1'inde tam bir güncelleme yapar
-- API istek limitlerine uygun şekilde veri çeker
+Bu komut çalıştırıldığında:
+
+1. **Kasım 20 Kontrolü**: Her yıl 20 Kasım'da Diyanet API'si gelecek yıl verilerini içeriyor mu kontrol edilir.
+   - Eğer gelecek yıl verisi mevcutsa, tüm konumlar için yıllık veriler indirilir.
+   - Mevcut değilse, "beklemede" olarak işaretlenir.
+
+2. **Üç Günlük Kontrol**: Eğer "beklemede" durumu varsa, her 3 günde bir gelecek yıl verisi kontrol edilir.
+   - Veri mevcut olduğunda, tüm konumlar için veriler indirilir.
+
+3. **Acil Durum Kontrolü**: Veritabanında kalan veri 30 günden az ise, acil güncelleme yapılır.
+
+Bu strateji sayesinde:
+- API istek limitlerine uyulur (her yer için günlük 5, aylık 10)
+- Tüm veriler yıllık olarak bir kerede indirilir
+- Sistem her zaman güncel veri sağlar
 
 ## API Endpoint'leri
 
@@ -107,6 +120,7 @@ Ana veritabanı tabloları:
 - `prayer_times` - Namaz vakitleri
 - `eid_times` - Bayram namazı vakitleri
 - `daily_contents` - Günlük dini içerikler
+- `update_logs` - Güncelleme işlemleri kayıtları
 
 ## Diyanet API Entegrasyonu
 
