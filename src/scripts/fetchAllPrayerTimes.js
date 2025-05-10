@@ -4,50 +4,52 @@ const prayerTimeModel = require('../models/prayerTimeModel');
 const locationModel = require('../models/locationModel');
 const db = require('../config/db');
 
-// Ayları bölerek her ay için ayrı sorgu yapacağız (Diyanet API sınırlamalarından dolayı)
+// Tarih formatını düzenleyen yardımcı fonksiyon
 const formatDate = (date) => {
   return date.toISOString().split('T')[0]; // YYYY-MM-DD formatı
 };
 
-// İki tarih arasındaki ay sayısını hesapla
-const getMonthsBetweenDates = (startDate, endDate) => {
-  return (
-    (endDate.getFullYear() - startDate.getFullYear()) * 12 +
-    endDate.getMonth() - startDate.getMonth() + 1
-  );
-};
+// Belirli bir süre bekleyen fonksiyon 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Tarih aralığını aylık parçalara böl
-const getMonthlyDateRanges = (startDate, endDate) => {
-  const ranges = [];
-  const monthCount = getMonthsBetweenDates(startDate, endDate);
+// API isteği için tekrar deneme mekanizması
+const retryFetch = async (city, startDate, endDate, maxRetries = 3, retryDelay = 5000) => {
+  let lastError;
   
-  let currentStart = new Date(startDate);
-  
-  for (let i = 0; i < monthCount; i++) {
-    const currentEnd = new Date(currentStart);
-    
-    // Ayın son günü
-    if (i < monthCount - 1) {
-      // Bir sonraki ayın ilk günü - 1 gün
-      currentEnd.setMonth(currentEnd.getMonth() + 1);
-      currentEnd.setDate(0);
-    } else {
-      // Son ay için bitiş tarihi endDate
-      currentEnd.setTime(endDate.getTime());
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[${city.name}] ${startDate} - ${endDate} aralığındaki veri çekiliyor... (Deneme: ${attempt}/${maxRetries})`);
+      
+      // Diyanet API'den namaz vakitlerini al
+      const result = await diyanetService.getPrayerTimesByDateRange(
+        city.id,
+        startDate,
+        endDate
+      );
+      
+      if (result && result.data && result.data.length > 0) {
+        return result;
+      } else {
+        console.warn(`[${city.name}] ${startDate} - ${endDate} aralığında veri bulunamadı.`);
+        lastError = new Error('Veri bulunamadı');
+      }
+    } catch (error) {
+      console.error(`[${city.name}] ${startDate} - ${endDate} aralığı için hata (Deneme: ${attempt}/${maxRetries}):`, error.message);
+      lastError = error;
+      
+      // Token yenileme hatası gibi kimlik doğrulama sorunlarında daha uzun bekle
+      if (error.message.includes('401') || error.message.includes('auth') || error.message.includes('token')) {
+        await sleep(retryDelay * 3);
+      } else {
+        await sleep(retryDelay);
+      }
+      
+      continue; // Sonraki denemeye geç
     }
-    
-    ranges.push({
-      start: formatDate(currentStart),
-      end: formatDate(currentEnd),
-    });
-    
-    // Bir sonraki ayın ilk günü
-    currentStart = new Date(currentEnd);
-    currentStart.setDate(currentEnd.getDate() + 1);
   }
   
-  return ranges;
+  // Tüm denemeler başarısız oldu
+  throw lastError || new Error('Maksimum deneme sayısına ulaşıldı');
 };
 
 // İlçe için namaz vakitlerini tüm yıl için çek ve kaydet
@@ -59,43 +61,32 @@ const fetchAndSavePrayerTimesForCity = async (city, year) => {
     const startDate = new Date(year, 0, 1); // 1 Ocak
     const endDate = new Date(year, 11, 31); // 31 Aralık
     
-    // Tarihleri aylık aralıklara böl (API limitlerinden dolayı)
-    const monthlyRanges = getMonthlyDateRanges(startDate, endDate);
+    const startDateStr = formatDate(startDate);
+    const endDateStr = formatDate(endDate);
     
     let totalDays = 0;
+    let result;
     
-    // Her ay için ayrı ayrı çek
-    for (let i = 0; i < monthlyRanges.length; i++) {
-      const range = monthlyRanges[i];
-      console.log(`[${city.name}] ${range.start} - ${range.end} aralığındaki veriler çekiliyor...`);
+    try {
+      // Tekrar deneme mekanizması ile yıllık veriyi tek seferde çek
+      result = await retryFetch(city, startDateStr, endDateStr);
       
-      try {
-        // Diyanet API'den namaz vakitlerini al
-        const result = await diyanetService.getPrayerTimesByDateRange(
-          city.id,
-          range.start,
-          range.end
-        );
-        
-        if (result && result.data && result.data.length > 0) {
-          // API'den gelen verileri veritabanına kaydet
-          const savedData = await prayerTimeModel.createPrayerTimesInBulk(city.id, result.data);
-          console.log(`[${city.name}] ${savedData.length} günlük namaz vakti verisi veritabanına kaydedildi.`);
-          totalDays += savedData.length;
-          
-          // API istek sınırlaması için bekleme süresi (dakikada 5 istek sınırı olabilir)
-          await new Promise(resolve => setTimeout(resolve, 12000)); // 12 saniye bekle
-        } else {
-          console.warn(`[${city.name}] ${range.start} - ${range.end} aralığında veri bulunamadı.`);
-        }
-      } catch (error) {
-        console.error(`[${city.name}] ${range.start} - ${range.end} aralığı için hata:`, error.message);
-        // Hataya rağmen diğer aylarla devam et
-        await new Promise(resolve => setTimeout(resolve, 30000)); // Hata durumunda 30 saniye bekle
+      if (result && result.data && result.data.length > 0) {
+        // API'den gelen verileri veritabanına kaydet
+        const savedData = await prayerTimeModel.createPrayerTimesInBulk(city.id, result.data);
+        console.log(`[${city.name}] ${savedData.length} günlük namaz vakti verisi veritabanına kaydedildi.`);
+        totalDays = savedData.length;
       }
+    } catch (error) {
+      console.error(`[${city.name}] yıllık veri çekme işlemi başarısız oldu:`, error.message);
+      throw error;
     }
     
     console.log(`\n[${city.name}] için işlem tamamlandı. Toplam ${totalDays} günlük veri kaydedildi.`);
+    
+    // İstekler arasında kısa bir bekletme yap (3 saniye)
+    await sleep(3000);
+    
     return totalDays;
   } catch (error) {
     console.error(`[${city.name}] için işlem hatası:`, error.message);
@@ -127,7 +118,13 @@ const fetchAllPrayerTimes = async () => {
     
     if (priorityCities.rows.length > 0) {
       for (const city of priorityCities.rows) {
-        await fetchAndSavePrayerTimesForCity(city, currentYear);
+        try {
+          await fetchAndSavePrayerTimesForCity(city, currentYear);
+        } catch (error) {
+          console.error(`${city.name} için işlem başarısız:`, error.message);
+          // Hata olsa bile diğer şehirlerle devam et
+          continue;
+        }
       }
     }
     
@@ -144,7 +141,13 @@ const fetchAllPrayerTimes = async () => {
     
     if (turkishCities.rows.length > 0) {
       for (const city of turkishCities.rows) {
-        await fetchAndSavePrayerTimesForCity(city, currentYear);
+        try {
+          await fetchAndSavePrayerTimesForCity(city, currentYear);
+        } catch (error) {
+          console.error(`${city.name} için işlem başarısız:`, error.message);
+          // Hata olsa bile diğer şehirlerle devam et
+          continue;
+        }
       }
     }
     
@@ -162,7 +165,13 @@ const fetchAllPrayerTimes = async () => {
     
     if (worldCities.rows.length > 0) {
       for (const city of worldCities.rows) {
-        await fetchAndSavePrayerTimesForCity(city, currentYear);
+        try {
+          await fetchAndSavePrayerTimesForCity(city, currentYear);
+        } catch (error) {
+          console.error(`${city.name} için işlem başarısız:`, error.message);
+          // Hata olsa bile diğer şehirlerle devam et
+          continue;
+        }
       }
     }
     
