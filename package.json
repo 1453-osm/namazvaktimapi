@@ -7,13 +7,19 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "setup-db": "node src/config/setupDb.js",
+    "setup-turso": "node src/config/setupTursoDb.js",
     "fetch-countries": "node src/scripts/fetchCountries.js",
     "fetch-states": "node src/scripts/fetchStates.js",
     "fetch-cities": "node src/scripts/fetchCities.js",
     "fetch-prayer-times": "node src/scripts/fetchPrayerTimes.js",
     "fetch-all-prayer-times": "node src/scripts/fetchAllPrayerTimes.js",
+    "check-missing-data": "node src/scripts/checkAndFixMissingData.js",
     "test-github": "node src/test-github-actions.js",
     "schedule-updates": "node src/scripts/schedulePrayerTimesUpdate.js",
+    "turso-fetch-countries": "node src/scripts/turso/fetchCountriesForTurso.js",
+    "turso-fetch-states": "node src/scripts/turso/fetchStatesForTurso.js",
+    "turso-fetch-cities": "node src/scripts/turso/fetchCitiesForTurso.js",
+    "turso-migrate": "node src/scripts/turso/migrateToTurso.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -26,6 +32,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@libsql/client": "^0.4.0",
     "axios": "^1.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",

@@ -16,7 +16,8 @@ jobs:
   prepare-data:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
     
     outputs:
@@ -44,26 +45,27 @@ jobs:
         timeout-minutes: 5
         continue-on-error: true
       
-      - name: Test Database Connection
+      - name: Test Turso Database Connection
         run: |
-          echo "Veritabanı bağlantısı test ediliyor..."
-          echo "DATABASE_URL değişkeni: ${{ env.DATABASE_URL != '' && 'TANIMLANMIŞ ✅' || 'TANIMLANMAMIŞ ❌' }}" 
-          node src/scripts/testDbConnection.js
+          echo "Turso veritabanı bağlantısı test ediliyor..."
+          echo "TURSO_DATABASE_URL değişkeni: ${{ env.TURSO_DATABASE_URL != '' && 'TANIMLANMIŞ ✅' || 'TANIMLANMAMIŞ ❌' }}" 
+          echo "TURSO_AUTH_TOKEN değişkeni: ${{ env.TURSO_AUTH_TOKEN != '' && 'TANIMLANMIŞ ✅' || 'TANIMLANMAMIŞ ❌' }}"
+          node -e "const { testConnection } = require('./src/config/turso'); (async () => { try { await testConnection(); } catch(e) { console.error('Bağlantı hatası:', e); process.exit(1); } })();"
 
       - name: Set up database schema
         run: |
-          echo "Veritabanı şeması hazırlanıyor..."
-          node src/config/setupDb.js
+          echo "Turso veritabanı şeması hazırlanıyor..."
+          node src/config/setupTursoDb.js
         timeout-minutes: 10
 
       - name: Check location data
         id: check-countries
         run: |
           # Ülke sayısını kontrol et (daha basit yaklaşım)
-          echo "Veritabanındaki ülke sayısı kontrol ediliyor..."
+          echo "Turso veritabanındaki ülke sayısı kontrol ediliyor..."
           
           # Tek satırda, process.exit() çağırarak çalıştırma
-          COUNTRIES_COUNT=$(node -e "const db = require('./src/config/db'); (async () => { try { const result = await db.query('SELECT COUNT(*) FROM countries'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } finally { db.pool.end(); process.exit(0); } })();")
+          COUNTRIES_COUNT=$(node -e "const { client } = require('./src/config/turso'); (async () => { try { const result = await client.execute('SELECT COUNT(*) as count FROM countries'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } finally { process.exit(0); } })();")
           
           # Çıktıyı ayıkla - sadece sayıyı almak için
           COUNTRIES_COUNT=$(echo "$COUNTRIES_COUNT" | grep -o '[0-9]\+' | tail -1)
@@ -77,13 +79,13 @@ jobs:
           # Ülke verilerini kontrol et
           if [ "$COUNTRIES_COUNT" = "0" ]; then
             echo "Ülke verileri bulunamadı, indiriliyor..."
-            node src/scripts/fetchCountries.js
+            node src/scripts/turso/fetchCountriesForTurso.js
             
             echo "Şehir verileri indiriliyor..."
-            node src/scripts/fetchStates.js
+            node src/scripts/turso/fetchStatesForTurso.js
             
             echo "İlçe verileri indiriliyor..."
-            node src/scripts/fetchCities.js
+            node src/scripts/turso/fetchCitiesForTurso.js
           else
             echo "Lokasyon verileri zaten mevcut ($COUNTRIES_COUNT ülke)."
           fi
@@ -154,7 +156,8 @@ jobs:
     if: ${{ needs.prepare-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true' }}
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
     
     strategy:
@@ -181,12 +184,14 @@ jobs:
           CHUNK_ID: ${{ matrix.chunk }}
         run: |
           echo "Namaz vakitlerini çekme işlemi (parça ${{ matrix.chunk }}/10) başlatılıyor..."
-          echo "DATABASE_URL: ${{ env.DATABASE_URL != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
+          echo "TURSO_DATABASE_URL: ${{ env.TURSO_DATABASE_URL != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
+          echo "TURSO_AUTH_TOKEN: ${{ env.TURSO_AUTH_TOKEN != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
           echo "HTTP_PROXY: ${{ env.HTTP_PROXY != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
           echo "CHUNK_ID: ${{ matrix.chunk }}"
           
           # Paralel çalışma için gerekli parametreleri geçirerek script'i çalıştır
-          NODE_OPTIONS="--max-old-space-size=4096" node src/scripts/fetchAllPrayerTimes.js --chunk=${{ matrix.chunk }} --total-chunks=10
+          # TODO: Turso için fetchAllPrayerTimesForTurso.js scripti oluşturulmalı
+          NODE_OPTIONS="--max-old-space-size=4096" node src/scripts/turso/fetchAllPrayerTimesForTurso.js --chunk=${{ matrix.chunk }} --total-chunks=10
         timeout-minutes: 120  # Her bir parça için 2 saat timeout (daha kısa sürecek)
 
   finalize:
@@ -194,7 +199,8 @@ jobs:
     if: ${{ always() && (needs.prepare-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true') }}
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
     
     steps:
       - name: Checkout repository
@@ -211,14 +217,14 @@ jobs:
       
       - name: Test prayer times data
         run: |
-          echo "Veritabanındaki namaz vakitleri sayısı kontrol ediliyor..."
-          PRAYER_TIMES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('Hata: ' + e.message); } finally { db.pool.end(); } }; check();")
+          echo "Turso veritabanındaki namaz vakitleri sayısı kontrol ediliyor..."
+          PRAYER_TIMES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('Hata: ' + e.message); } }; check();")
           echo "Namaz vakitleri sayısı: ${PRAYER_TIMES_COUNT}"
       
       - name: Create summary
         run: |
           echo "Yıllık namaz vakitleri işlemi tamamlandı." >> $GITHUB_STEP_SUMMARY
-          PRAYER_TIMES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } finally { db.pool.end(); } }; check();")
+          PRAYER_TIMES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } }; check();")
           echo "Veritabanındaki toplam namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY
           echo "Paralel veri çekme işlemi başarıyla tamamlandı (10 paralel görev)." >> $GITHUB_STEP_SUMMARY
 
@@ -233,3 +239,32 @@ jobs:
           echo "Gelecek yıl verisi henüz Diyanet API'sinde mevcut değil."
           echo "Veri çekme işlemi gerçekleştirilmedi."
           echo "Zorlamak için 'force_update' seçeneğini true olarak ayarlayın." 
+          
+  check-missing-data:
+    needs: [finalize]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Check and fix missing data
+        run: |
+          echo "Eksik veri kontrolü Turso veritabanında yapılacak..."
+          # TODO: Turso için checkAndFixMissingDataForTurso.js scripti oluşturulmalı
+          node src/scripts/turso/checkAndFixMissingDataForTurso.js
+        timeout-minutes: 30 
