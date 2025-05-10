@@ -34,7 +34,7 @@ const getToken = async () => {
         password: DIYANET_PASSWORD
       });
       
-      if (loginResponse.data && loginResponse.data.isSuccess) {
+      if (loginResponse.data && loginResponse.data.success === true && loginResponse.data.data) {
         accessToken = loginResponse.data.data.accessToken;
         refreshToken = loginResponse.data.data.refreshToken;
         
@@ -51,7 +51,7 @@ const getToken = async () => {
       // Refresh token ile yenileme
       const refreshResponse = await axios.get(`${DIYANET_API_BASE_URL}/Auth/RefreshToken/${refreshToken}`);
       
-      if (refreshResponse.data && refreshResponse.data.isSuccess) {
+      if (refreshResponse.data && refreshResponse.data.success === true && refreshResponse.data.data) {
         accessToken = refreshResponse.data.data.accessToken;
         refreshToken = refreshResponse.data.data.refreshToken;
         

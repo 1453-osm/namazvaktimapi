@@ -58,20 +58,15 @@ async function checkMissingPrayerTimes() {
 // Diyanet API'den destek verilen tarih aralığını kontrol et
 async function checkSupportedDateRange() {
   try {
-    console.log('Diyanet API tarih aralığı kontrol ediliyor...');
-    
     // API'den desteklenen tarih aralığını al
-    const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
+    const response = await diyanetApi.getPrayerTimeDateRange();
     
-    if (!dateRangeResponse || !dateRangeResponse.isSuccess || !dateRangeResponse.data) {
-      console.error('Tarih aralığı alınamadı:', dateRangeResponse);
+    if (!response || !response.success) {
+      console.log('Tarih aralığı API yanıtı başarısız:', response);
       return null;
     }
     
-    const { startDate, endDate } = dateRangeResponse.data;
-    console.log(`API desteklenen tarih aralığı: ${startDate} - ${endDate}`);
-    
-    return { startDate, endDate };
+    return response.data;
   } catch (error) {
     console.error('Tarih aralığı kontrolü sırasında hata:', error);
     return null;

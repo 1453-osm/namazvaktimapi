@@ -46,55 +46,62 @@ jobs:
       - name: Check if next year data is available
         id: check-data
         run: |
-          node -e "
-          const diyanetApi = require('./src/utils/diyanetApi');
-          const fs = require('fs');
-          
-          async function checkNextYearData() {
-            try {
-              console.log('Gelecek yıl verisi kontrol ediliyor...');
-              
-              // API'den desteklenen tarih aralığını al
-              const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
-              
-              if (!dateRangeResponse || !dateRangeResponse.isSuccess || !dateRangeResponse.data) {
-                console.log('Tarih aralığı alınamadı!');
+          # Manuel başlatma durumunda her zaman şu anki yılın verisi çekilsin
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Manuel başlatma, mevcut yılın verisi çekilecek."
+            echo "has_next_year_data=true" >> $GITHUB_OUTPUT
+          else
+            # Otomatik çalışmada gelecek yıl kontrolü yapılır
+            node -e "
+            const diyanetApi = require('./src/utils/diyanetApi');
+            const fs = require('fs');
+            
+            async function checkNextYearData() {
+              try {
+                console.log('Gelecek yıl verisi kontrol ediliyor...');
+                
+                // API'den desteklenen tarih aralığını al
+                const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
+                
+                if (!dateRangeResponse || !dateRangeResponse.success || !dateRangeResponse.data) {
+                  console.log('Tarih aralığı alınamadı!');
+                  process.exit(1);
+                }
+                
+                const { startDate, endDate } = dateRangeResponse.data;
+                console.log(`API desteklenen tarih aralığı: ${startDate} - ${endDate}`);
+                
+                // Gelecek yılın 1 Ocak tarihi
+                const now = new Date();
+                const nextYear = now.getFullYear() + 1;
+                const nextYearStart = new Date(`${nextYear}-01-01`);
+                
+                // API'nin desteklediği bitiş tarihi
+                const apiEndDate = new Date(endDate);
+                
+                // Gelecek yılın başlangıcı API tarafından destekleniyor mu?
+                const nextYearStartSupported = nextYearStart <= apiEndDate;
+                
+                // En azından 6 ay desteklenmesini bekleyelim
+                const sixMonthsNextYear = new Date(nextYear, 6, 1); // Temmuz 1
+                const enoughNextYearSupported = sixMonthsNextYear <= apiEndDate;
+                
+                console.log(`Gelecek yıl (${nextYear}) verisi: ${nextYearStartSupported ? 'Mevcut' : 'Mevcut değil'}`);
+                console.log(`Gelecek yılın en az yarısı: ${enoughNextYearSupported ? 'Destekleniyor' : 'Desteklenmiyor'}`);
+                
+                // GitHub Actions çıktı olarak kaydet
+                fs.writeFileSync(process.env.GITHUB_OUTPUT || '', `has_next_year_data=${enoughNextYearSupported ? 'true' : 'false'}`);
+                
+                return enoughNextYearSupported;
+              } catch (error) {
+                console.error('Hata:', error);
                 process.exit(1);
               }
-              
-              const { startDate, endDate } = dateRangeResponse.data;
-              console.log(`API desteklenen tarih aralığı: ${startDate} - ${endDate}`);
-              
-              // Gelecek yılın 1 Ocak tarihi
-              const now = new Date();
-              const nextYear = now.getFullYear() + 1;
-              const nextYearStart = new Date(`${nextYear}-01-01`);
-              
-              // API'nin desteklediği bitiş tarihi
-              const apiEndDate = new Date(endDate);
-              
-              // Gelecek yılın başlangıcı API tarafından destekleniyor mu?
-              const nextYearStartSupported = nextYearStart <= apiEndDate;
-              
-              // En azından 6 ay desteklenmesini bekleyelim
-              const sixMonthsNextYear = new Date(nextYear, 6, 1); // Temmuz 1
-              const enoughNextYearSupported = sixMonthsNextYear <= apiEndDate;
-              
-              console.log(`Gelecek yıl (${nextYear}) verisi: ${nextYearStartSupported ? 'Mevcut' : 'Mevcut değil'}`);
-              console.log(`Gelecek yılın en az yarısı: ${enoughNextYearSupported ? 'Destekleniyor' : 'Desteklenmiyor'}`);
-              
-              // GitHub Actions çıktı olarak kaydet
-              fs.writeFileSync(process.env.GITHUB_OUTPUT || '', `has_next_year_data=${enoughNextYearSupported ? 'true' : 'false'}`);
-              
-              return enoughNextYearSupported;
-            } catch (error) {
-              console.error('Hata:', error);
-              process.exit(1);
             }
-          }
-          
-          checkNextYearData();
-          "
+            
+            checkNextYearData();
+            "
+          fi
         continue-on-error: true
       
       - name: Fetch yearly prayer times data

@@ -95,7 +95,7 @@ async function fetchAndSavePrayerTimes() {
         console.log('Diyanet API tarih aralığı alınıyor...');
         const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
         
-        if (!dateRangeResponse || !dateRangeResponse.isSuccess || !dateRangeResponse.data) {
+        if (!dateRangeResponse || !dateRangeResponse.success || !dateRangeResponse.data) {
             console.error('Tarih aralığı alınamadı:', dateRangeResponse);
             await client.query('ROLLBACK');
             return;
@@ -135,7 +135,7 @@ async function fetchAndSavePrayerTimes() {
                             range.end
                         );
                         
-                        if (!response || !response.isSuccess || !response.data) {
+                        if (!response || !response.success || !response.data) {
                             console.error(`API yanıtı başarısız oldu: ${JSON.stringify(response)}`);
                             continue;
                         }
