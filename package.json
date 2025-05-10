@@ -7,6 +7,11 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "setup-db": "node src/config/setupDb.js",
+    "fetch-countries": "node src/scripts/fetchCountries.js",
+    "fetch-states": "node src/scripts/fetchStates.js",
+    "fetch-cities": "node src/scripts/fetchCities.js",
+    "fetch-prayer-times": "node src/scripts/fetchPrayerTimes.js",
+    "schedule-updates": "node src/scripts/schedulePrayerTimesUpdate.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

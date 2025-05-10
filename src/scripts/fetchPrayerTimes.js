@@ -1,4 +1,6 @@
-const diyanetService = require('../services/diyanetService');
+const diyanetApi = require('../utils/diyanetApi');
+const prayerTimeModel = require('../models/prayerTimeModel');
+const locationModel = require('../models/locationModel');
 const { pool } = require('../config/db');
 
 // Tarih yardımcı fonksiyonları
@@ -21,27 +23,52 @@ function addMonths(date, months) {
     return result;
 }
 
+// Bekle fonksiyonu - istek limitleri için gecikme sağlar
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Tarih aralığını aylık dilimlere böl
+function splitDateRangeByMonth(startDate, endDate) {
+    const ranges = [];
+    let currentStart = new Date(startDate);
+    
+    while (currentStart < new Date(endDate)) {
+        // Ay sonu hesapla
+        let monthEnd = new Date(currentStart.getFullYear(), currentStart.getMonth() + 1, 0);
+        
+        // Eğer endDate'den sonraysa, endDate'i kullan
+        if (monthEnd > new Date(endDate)) {
+            monthEnd = new Date(endDate);
+        }
+        
+        ranges.push({
+            start: formatDate(currentStart),
+            end: formatDate(monthEnd)
+        });
+        
+        // Bir sonraki ayın başına geç
+        currentStart = new Date(currentStart.getFullYear(), currentStart.getMonth() + 1, 1);
+    }
+    
+    return ranges;
+}
+
 async function fetchAndSavePrayerTimes() {
     // Bir veritabanı client'ı oluştur
     const client = await pool.connect();
     
     try {
         console.log('Veritabanı bağlantısı başlatılıyor...');
-        console.log('Bağlantı URL:', process.env.DATABASE_URL ? 'Çevresel değişken tanımlanmış' : 'Çevresel değişken tanımlanmamış, varsayılan bağlantı kullanılıyor');
         
         // Veritabanı bağlantısını test et
-        try {
-            const testQuery = await client.query('SELECT NOW() as current_time');
-            console.log('Veritabanı bağlantısı başarılı!');
-            console.log('Sunucu zamanı:', testQuery.rows[0].current_time);
-            
-            // Mevcut prayer_times tablosunu kontrol et
-            const prayerTimesCheck = await client.query('SELECT COUNT(*) FROM prayer_times');
-            console.log(`Mevcut namaz vakitleri sayısı: ${prayerTimesCheck.rows[0].count}`);
-        } catch (dbError) {
-            console.error('HATA: Veritabanı bağlantısı sağlanamadı:', dbError.message);
-            throw new Error('Veritabanı bağlantısı kurulamadı');
-        }
+        const testQuery = await client.query('SELECT NOW() as current_time');
+        console.log('Veritabanı bağlantısı başarılı!');
+        console.log('Sunucu zamanı:', testQuery.rows[0].current_time);
+        
+        // Mevcut prayer_times tablosunu kontrol et
+        const prayerTimesCheck = await client.query('SELECT COUNT(*) FROM prayer_times');
+        console.log(`Mevcut namaz vakitleri sayısı: ${prayerTimesCheck.rows[0].count}`);
         
         // Transaction başlat
         await client.query('BEGIN');
@@ -64,181 +91,164 @@ async function fetchAndSavePrayerTimes() {
             return;
         }
         
-        // Test için sınırlı sayıda ilçe ile çalış (örn. ilk 5 ilçe)
-        const limitedCities = cities.slice(0, 5);
-        console.log(`Test için ilk ${limitedCities.length} ilçe ile çalışılıyor.`);
+        // API'den desteklenen tarih aralığını al
+        console.log('Diyanet API tarih aralığı alınıyor...');
+        const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
+        
+        if (!dateRangeResponse || !dateRangeResponse.isSuccess || !dateRangeResponse.data) {
+            console.error('Tarih aralığı alınamadı:', dateRangeResponse);
+            await client.query('ROLLBACK');
+            return;
+        }
+        
+        const { startDate, endDate } = dateRangeResponse.data;
+        console.log(`API desteklenen tarih aralığı: ${startDate} - ${endDate}`);
+        
+        // Tarih aralığını aylık dilimlere böl
+        const dateRanges = splitDateRangeByMonth(startDate, endDate);
+        console.log(`Tarih aralığı ${dateRanges.length} aylık dilime bölündü.`);
         
         // İşlem istatistikleri
         let totalSuccess = 0;
         let totalFailed = 0;
         let totalPrayerTimesAdded = 0;
-        
-        // Bugünden başlayarak 1 yıllık aralık
-        const today = new Date();
-        const oneYearLater = addMonths(today, 12);
-        
-        console.log(`Tarih aralığı: ${formatDate(today)} - ${formatDate(oneYearLater)}`);
+        let processedCities = 0;
         
         // Her ilçe için namaz vakitlerini çek
-        for (const city of limitedCities) {
-            console.log(`\n${city.state_name} - ${city.city_name} (ID: ${city.id}) için namaz vakitleri çekiliyor...`);
+        for (const city of cities) {
+            processedCities++;
+            console.log(`\n[${processedCities}/${cities.length}] ${city.state_name} - ${city.city_name} (ID: ${city.id}) için namaz vakitleri çekiliyor...`);
             
             try {
-                // Her ilçe için tarih aralığındaki namaz vakitlerini al
-                console.log('API isteği gönderiliyor...');
-                const response = await diyanetService.getPrayerTimesByDateRange(
-                    city.id,
-                    formatDate(today),
-                    formatDate(oneYearLater)
-                );
+                let citySuccess = 0;
+                let cityTotal = 0;
                 
-                if (!response || !response.data) {
-                    console.error(`API yanıtı geçersiz: ${JSON.stringify(response).substring(0, 200)}...`);
-                    totalFailed++;
-                    continue;
-                }
-                
-                const prayerTimes = Array.isArray(response.data) ? response.data : [];
-                console.log(`${city.city_name} için ${prayerTimes.length} günlük namaz vakti bulundu.`);
-                
-                if (prayerTimes.length === 0) {
-                    console.log('Namaz vakti verisi bulunamadı, bir sonraki ilçeye geçiliyor.');
-                    totalFailed++;
-                    continue;
-                }
-                
-                // Test için sadece 5 günlük veri alalım
-                const limitedPrayerTimes = prayerTimes.slice(0, 5);
-                console.log(`Test için ilk ${limitedPrayerTimes.length} gün işlenecek.`);
-                
-                let daySuccess = 0;
-                
-                // Veritabanına kaydet
-                console.log('Namaz vakitleri veritabanına kaydediliyor...');
-                for (const prayerTime of limitedPrayerTimes) {
+                // Her ay için ayrı istek yap - API istek sınırlarına uymak için
+                for (const range of dateRanges) {
+                    console.log(`Tarih aralığı: ${range.start} - ${range.end} için veri çekiliyor...`);
+                    
                     try {
-                        console.log('İşlenen namaz vakti:', JSON.stringify(prayerTime).substring(0, 100));
+                        // API isteği gönder
+                        const response = await diyanetApi.getPrayerTimesByDateRangeAndCity(
+                            city.id, 
+                            range.start,
+                            range.end
+                        );
                         
-                        // API yanıt yapısına göre bu alanları extract et
-                        const {
-                            MiladiTarih, // String olarak tarih
-                            Imsak,
-                            Gunes,
-                            Ogle,
-                            Ikindi,
-                            Aksam,
-                            Yatsi
-                        } = prayerTime;
-                        
-                        // String tarihini parse et
-                        // Format: "18.05.2023" (gün.ay.yıl)
-                        const dateParts = MiladiTarih.split('.');
-                        if (dateParts.length !== 3) {
-                            console.error(`Geçersiz tarih formatı: ${MiladiTarih}`);
+                        if (!response || !response.isSuccess || !response.data) {
+                            console.error(`API yanıtı başarısız oldu: ${JSON.stringify(response)}`);
                             continue;
                         }
                         
-                        const prayerDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`; // YYYY-MM-DD formatına çevir
+                        const prayerTimes = response.data;
+                        console.log(`${prayerTimes.length} günlük namaz vakti bulundu.`);
                         
-                        console.log(`Namaz vakti kaydediliyor: ${city.city_name} için ${prayerDate}`);
-                        console.log(`Vakitler: Imsak=${Imsak}, Gunes=${Gunes}, Ogle=${Ogle}, Ikindi=${Ikindi}, Aksam=${Aksam}, Yatsi=${Yatsi}`);
+                        if (prayerTimes.length === 0) {
+                            console.log('Namaz vakti verisi bulunamadı, sonraki tarih aralığına geçiliyor.');
+                            continue;
+                        }
                         
                         // Veritabanına kaydet
-                        const insertQuery = `
-                            INSERT INTO prayer_times
-                             (city_id, date, fajr, sunrise, dhuhr, asr, maghrib, isha)
-                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                             ON CONFLICT (city_id, date) 
-                             DO UPDATE SET 
-                                fajr = $3, 
-                                sunrise = $4, 
-                                dhuhr = $5, 
-                                asr = $6, 
-                                maghrib = $7, 
-                                isha = $8
-                             RETURNING id
-                        `;
-                        
-                        const values = [
-                            city.id,
-                            prayerDate,
-                            Imsak,
-                            Gunes,
-                            Ogle,
-                            Ikindi,
-                            Aksam,
-                            Yatsi
-                        ];
-                        
-                        console.log('SQL sorgusu çalıştırılıyor...');
-                        const insertResult = await client.query(insertQuery, values);
-                        
-                        console.log('Sorgu sonucu:', JSON.stringify(insertResult.rows));
-                        
-                        if (insertResult.rows.length > 0) {
-                            console.log(`Kayıt başarılı. ID: ${insertResult.rows[0].id}`);
-                            daySuccess++;
-                        } else {
-                            console.error('Kayıt başarısız: Sonuç boş');
+                        let savedCount = 0;
+                        for (const prayerTime of prayerTimes) {
+                            try {
+                                // Veritabanına kaydet
+                                await prayerTimeModel.createPrayerTime(
+                                    parseInt(city.id),
+                                    prayerTime.date,
+                                    prayerTime.fajr,
+                                    prayerTime.sunrise,
+                                    prayerTime.dhuhr,
+                                    prayerTime.asr,
+                                    prayerTime.maghrib,
+                                    prayerTime.isha,
+                                    prayerTime.qibla || null,
+                                    prayerTime.gregorianDate || prayerTime.date,
+                                    prayerTime.hijriDate || null
+                                );
+                                
+                                savedCount++;
+                                citySuccess++;
+                                totalPrayerTimesAdded++;
+                            } catch (insertError) {
+                                console.error(`Namaz vakti kaydedilirken hata: ${insertError.message}`);
+                            }
                         }
-                    } catch (insertError) {
-                        console.error(`Namaz vakti kaydedilirken hata:`, insertError.message);
-                        console.error('Tam hata:', insertError);
+                        
+                        cityTotal += prayerTimes.length;
+                        console.log(`${savedCount}/${prayerTimes.length} namaz vakti başarıyla kaydedildi.`);
+                        
+                        // Her istek arasında bekle (API istek sınırı için)
+                        await sleep(1500);
+                    } catch (rangeError) {
+                        console.error(`Tarih aralığı için hata: ${rangeError.message}`);
                     }
                 }
                 
-                // Her ilçe sonrası ara commit
+                // Ara commit
                 await client.query('COMMIT');
                 await client.query('BEGIN');
                 
-                console.log(`${city.city_name} için ${daySuccess}/${limitedPrayerTimes.length} namaz vakti kaydedildi.`);
-                totalPrayerTimesAdded += daySuccess;
+                console.log(`${city.city_name} için toplam ${citySuccess}/${cityTotal} namaz vakti kaydedildi.`);
                 
-                if (daySuccess > 0) {
+                if (citySuccess > 0) {
                     totalSuccess++;
                 } else {
                     totalFailed++;
                 }
-            } catch (error) {
-                console.error(`${city.city_name} için namaz vakitleri çekilirken hata:`, error.message);
-                if (error.response) {
-                    console.error('API yanıt detayları:', error.response?.data);
-                }
+                
+                // Her ilçe arasında biraz bekle
+                await sleep(5000);
+            } catch (cityError) {
+                console.error(`${city.city_name} için hata: ${cityError.message}`);
                 totalFailed++;
-                continue;
+                
+                // Hatadan sonra işleme devam et
+                await client.query('ROLLBACK');
+                await client.query('BEGIN');
             }
             
-            // API istek sınırını aşmamak için kısa bir bekleme
-            console.log('3 saniye bekleniyor...');
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            // Her 10 ilçeden sonra sonuçları göster
+            if (processedCities % 10 === 0 || processedCities === cities.length) {
+                console.log(`\n--- İLERLEME RAPORU (${processedCities}/${cities.length}) ---`);
+                console.log(`Başarılı ilçeler: ${totalSuccess}`);
+                console.log(`Başarısız ilçeler: ${totalFailed}`);
+                console.log(`Toplam eklenen namaz vakti: ${totalPrayerTimesAdded}`);
+                console.log('---------------------------\n');
+            }
         }
         
-        // Son commit işlemi
+        // Son commit
         await client.query('COMMIT');
         
-        console.log('\nTüm namaz vakitleri işlemi tamamlandı.');
-        console.log(`Toplam ${limitedCities.length} ilçeden, ${totalSuccess} ilçe için işlem başarılı, ${totalFailed} ilçe için başarısız oldu.`);
-        console.log(`Toplam ${totalPrayerTimesAdded} namaz vakti kaydedildi.`);
-        
-        // Son durumu kontrol et
-        const finalCheck = await client.query('SELECT COUNT(*) FROM prayer_times');
-        console.log(`Veritabanında toplam ${finalCheck.rows[0].count} namaz vakti kaydı bulunuyor.`);
+        console.log('\n--- ÖZET ---');
+        console.log(`Toplam işlenen ilçe: ${cities.length}`);
+        console.log(`Başarılı ilçeler: ${totalSuccess}`);
+        console.log(`Başarısız ilçeler: ${totalFailed}`);
+        console.log(`Toplam eklenen namaz vakti: ${totalPrayerTimesAdded}`);
+        console.log('-------------');
         
     } catch (error) {
-        console.error('Genel hata:', error.message);
-        if (error.stack) {
-            console.error('Hata stack:', error.stack);
-        }
-        
-        // Hata durumunda rollback yap
+        console.error('İşlem sırasında hata oluştu:', error);
         await client.query('ROLLBACK');
     } finally {
-        console.log('Veritabanı bağlantısı kapatılıyor...');
         client.release();
-        await pool.end();
+        console.log('Veritabanı bağlantısı kapatıldı.');
     }
 }
 
-// Scripti çalıştır
-console.log('Script başlatılıyor...');
-fetchAndSavePrayerTimes(); 
+// Çalıştır
+if (require.main === module) {
+    console.log('Namaz vakitleri çekme işlemi başlatılıyor...');
+    fetchAndSavePrayerTimes()
+        .then(() => {
+            console.log('İşlem tamamlandı.');
+            process.exit(0);
+        })
+        .catch(err => {
+            console.error('İşlem başarısız oldu:', err);
+            process.exit(1);
+        });
+} else {
+    module.exports = { fetchAndSavePrayerTimes };
+} 

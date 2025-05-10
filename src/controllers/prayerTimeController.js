@@ -34,46 +34,32 @@ const getPrayerTimeByDate = async (req, res) => {
         if (dateRangeResponse && dateRangeResponse.isSuccess && dateRangeResponse.data) {
           const { startDate, endDate } = dateRangeResponse.data;
           
-          // Burada Diyanet API'nin namaz vakitleri endpoint'i yok.
-          // Gerçek entegrasyonda burada ilgili API çağrısı yapılacak
-          
-          // Örnek veri:
-          const mockDiyanetData = {
-            cityId: parseInt(cityId),
-            date,
-            fajr: '05:30',
-            sunrise: '07:00',
-            dhuhr: '12:30',
-            asr: '15:45',
-            maghrib: '18:30',
-            isha: '20:00',
-            qibla: '123.45',
-            gregorianDate: date,
-            hijriDate: '1444-09-15'
-          };
-          
-          // Veritabanına kaydet
-          prayerTime = await prayerTimeModel.createPrayerTime(
-            mockDiyanetData.cityId,
-            mockDiyanetData.date,
-            mockDiyanetData.fajr,
-            mockDiyanetData.sunrise,
-            mockDiyanetData.dhuhr,
-            mockDiyanetData.asr,
-            mockDiyanetData.maghrib,
-            mockDiyanetData.isha,
-            mockDiyanetData.qibla,
-            mockDiyanetData.gregorianDate,
-            mockDiyanetData.hijriDate
+          // Diyanet API'den namaz vakitlerini çek
+          const prayerTimesResponse = await diyanetApi.getPrayerTimesByDateRangeAndCity(
+            cityId, 
+            date, // Tek günlük veri için aynı tarih
+            date
           );
           
-          // İlişkili bilgileri manuel ekle
-          prayerTime = {
-            ...prayerTime,
-            city_name: 'Bilinmiyor',
-            state_name: 'Bilinmiyor',
-            country_name: 'Bilinmiyor'
-          };
+          if (prayerTimesResponse && prayerTimesResponse.isSuccess && prayerTimesResponse.data && prayerTimesResponse.data.length > 0) {
+            // API'den gelen veriyi işle
+            const prayerTimeData = prayerTimesResponse.data[0];
+            
+            // Veritabanına kaydet
+            prayerTime = await prayerTimeModel.createPrayerTime(
+              parseInt(cityId),
+              date,
+              prayerTimeData.fajr,
+              prayerTimeData.sunrise,
+              prayerTimeData.dhuhr,
+              prayerTimeData.asr,
+              prayerTimeData.maghrib,
+              prayerTimeData.isha,
+              prayerTimeData.qibla,
+              prayerTimeData.gregorianDate,
+              prayerTimeData.hijriDate
+            );
+          }
         }
       } catch (apiError) {
         console.error('Diyanet API namaz vakitleri hatası:', apiError);
@@ -122,14 +108,85 @@ const getPrayerTimesByDateRange = async (req, res) => {
       });
     }
     
-    // Veritabanından namaz vakitlerini al
-    const prayerTimes = await prayerTimeModel.getPrayerTimesByDateRange(cityId, startDate, endDate);
+    // Eksik günleri belirle
+    const dbPrayerTimes = await prayerTimeModel.getPrayerTimesByDateRange(cityId, startDate, endDate);
     
-    // TODO: Eğer veritabanında eksik günler varsa, Diyanet API'den tamamlanabilir
+    // Veritabanında bulunan tarihleri set olarak tut
+    const existingDates = new Set(dbPrayerTimes.map(pt => pt.date));
+    
+    // Tüm tarih aralığı oluştur
+    const allDates = [];
+    let currentDate = new Date(startDate);
+    const lastDate = new Date(endDate);
+    
+    while (currentDate <= lastDate) {
+      allDates.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    // Eksik tarihleri bul
+    const missingDates = allDates.filter(date => !existingDates.has(date));
+    
+    // Eksik tarihler varsa, API'den çek ve veritabanına ekle
+    if (missingDates.length > 0) {
+      try {
+        // İstek yükünü azaltmak için aylık dilimlere bölelim
+        const monthGroups = {};
+        
+        missingDates.forEach(date => {
+          const month = date.substring(0, 7); // YYYY-MM formatı
+          if (!monthGroups[month]) {
+            monthGroups[month] = [];
+          }
+          monthGroups[month].push(date);
+        });
+        
+        // Her ay için ayrı istek yap
+        for (const month in monthGroups) {
+          const monthDates = monthGroups[month];
+          const monthStartDate = monthDates[0];
+          const monthEndDate = monthDates[monthDates.length - 1];
+          
+          // Diyanet API'den bu tarih aralığı için namaz vakitlerini çek
+          const prayerTimesResponse = await diyanetApi.getPrayerTimesByDateRangeAndCity(
+            cityId, 
+            monthStartDate,
+            monthEndDate
+          );
+          
+          if (prayerTimesResponse && prayerTimesResponse.isSuccess && prayerTimesResponse.data) {
+            // Her günü veritabanına kaydet
+            const savePromises = prayerTimesResponse.data.map(async (pt) => {
+              return await prayerTimeModel.createPrayerTime(
+                parseInt(cityId),
+                pt.date,
+                pt.fajr,
+                pt.sunrise,
+                pt.dhuhr,
+                pt.asr,
+                pt.maghrib,
+                pt.isha,
+                pt.qibla,
+                pt.gregorianDate,
+                pt.hijriDate
+              );
+            });
+            
+            await Promise.all(savePromises);
+          }
+        }
+        
+        // Güncel verileri tekrar çek
+        const updatedPrayerTimes = await prayerTimeModel.getPrayerTimesByDateRange(cityId, startDate, endDate);
+        dbPrayerTimes.push(...updatedPrayerTimes.filter(pt => !existingDates.has(pt.date)));
+      } catch (apiError) {
+        console.error('Diyanet API namaz vakitleri hatası:', apiError);
+      }
+    }
     
     res.status(200).json({
       status: 'success',
-      data: prayerTimes
+      data: dbPrayerTimes
     });
   } catch (error) {
     console.error('Namaz vakitlerini getirirken hata:', error);

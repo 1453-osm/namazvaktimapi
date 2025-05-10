@@ -8,6 +8,8 @@ Namaz vakitleri, ülke/şehir/ilçe bilgileri için bir REST API.
 - Namaz vakitleri sorgulama
 - Bayram namazı vakitleri
 - Günlük dini içerikler
+- Diyanet API entegrasyonu ile gerçek zamanlı veri
+- Tüm konumlar için yıllık namaz vakitleri verisi
 
 ## Kurulum
 
@@ -41,7 +43,19 @@ NODE_ENV=development
 npm run setup-db
 ```
 
-5. Uygulamayı çalıştırın:
+5. Lokasyon verilerini (ülke, şehir, ilçe) yükleyin:
+```
+npm run fetch-countries
+npm run fetch-states
+npm run fetch-cities
+```
+
+6. Namaz vakitlerini yükleyin:
+```
+npm run fetch-prayer-times
+```
+
+7. Uygulamayı çalıştırın:
 ```
 npm start
 ```
@@ -50,6 +64,19 @@ Geliştirme modu için:
 ```
 npm run dev
 ```
+
+## Veri Güncelleme
+
+Namaz vakitleri verisini düzenli olarak güncellemek için planlayıcıyı kullanabilirsiniz:
+
+```
+npm run schedule-updates
+```
+
+Bu komut:
+- Her gün veri eksikliği kontrolü yapar ve gerekirse günceller
+- Her ayın 1'inde tam bir güncelleme yapar
+- API istek limitlerine uygun şekilde veri çeker
 
 ## API Endpoint'leri
 
@@ -81,64 +108,18 @@ Ana veritabanı tabloları:
 - `eid_times` - Bayram namazı vakitleri
 - `daily_contents` - Günlük dini içerikler
 
+## Diyanet API Entegrasyonu
+
+Uygulama, Diyanet İşleri Başkanlığı'nın awqatsalah.diyanet.gov.tr API'sini kullanarak:
+
+- Ülke, şehir ve ilçe verilerini çeker
+- Tüm konumlar için namaz vakitleri verisini toplar
+- Verileri veritabanında saklar ve sunar
+
+API istek limitlerine dikkat edilmiştir:
+- Her yer için günlük 5 istek
+- Her yer için aylık 10 tarih aralığı isteği
+
 ## Lisans
 
 ISC 
-
-## Cloud Run Üzerinde İlçe Verilerini Çekme
-
-İlçe verilerini çekmek için bir Cloud Run servisi kurulmuştur. Bu servis, veritabanındaki şehirlerin her biri için Diyanet API'sinden ilçe bilgilerini çeker ve veritabanına kaydeder.
-
-### Servis Özellikleri
-
-- **Kesintisiz Çalışma**: Script, bilgisayarınız kapalı olsa bile Google Cloud platformunda çalışmaya devam eder.
-- **Hata Toleransı**: Herhangi bir hata durumunda, script kaldığı yerden devam edebilir.
-- **İlerleme Takibi**: Veritabanında `app_settings` tablosunda ilerleme bilgisi tutulur.
-- **API Limitlerine Uyum**: Diyanet API'nin istek sınırlarını aşmamak için gerekli beklemeler eklenmiştir.
-
-### Nasıl Çalıştırılır
-
-1. Google Cloud CLI'yı kurun ve `gcloud auth login` komutu ile oturum açın.
-2. Google Cloud projenizi seçin: `gcloud config set project namazvaktimapi-1453`
-3. Servisi çalıştırmak için:
-
-```bash
-gcloud builds submit --config=cloudbuild.yaml
-```
-
-### Manuel Deploy İşlemi
-
-Eğer Google Cloud Build kullanmak istemiyorsanız, aşağıdaki adımları manuel olarak da uygulayabilirsiniz:
-
-1. Docker imajını oluşturun:
-```bash
-docker build -t gcr.io/namazvaktimapi-1453/namazvaktimapi-cities-fetcher:latest .
-```
-
-2. İmajı Container Registry'ye gönderin:
-```bash
-docker push gcr.io/namazvaktimapi-1453/namazvaktimapi-cities-fetcher:latest
-```
-
-3. Cloud Run'a deploy edin:
-```bash
-gcloud run deploy namazvaktimapi-cities-fetcher \
-  --image=gcr.io/namazvaktimapi-1453/namazvaktimapi-cities-fetcher:latest \
-  --platform=managed \
-  --region=us-east1 \
-  --memory=512Mi \
-  --timeout=3600 \
-  --no-allow-unauthenticated
-```
-
-### İlerlemeyi İzleme
-
-Servisin ilerleme durumunu Cloud Run konsolundan log'ları inceleyerek takip edebilirsiniz.
-
-```bash
-gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=namazvaktimapi-cities-fetcher" --limit=50
-```
-
-Ayrıca veritabanındaki `app_settings` tablosunda aşağıdaki bilgiler tutulur:
-- `last_processed_state_id`: En son işlenen şehir ID'si (işlem devam ediyor)
-- `cities_last_update`: Son başarılı güncelleme zamanı (işlem tamamlandı) 
