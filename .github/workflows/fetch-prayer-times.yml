@@ -59,12 +59,23 @@ jobs:
       - name: Check location data
         id: check-countries
         run: |
-          # Ülke sayısını kontrol et
-          COUNTRIES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM countries'); console.log(result.rows[0].count); process.exit(0); } catch(e) { console.log('0'); process.exit(0); } }; check();")
-          echo "countries_count=${COUNTRIES_COUNT}" >> $GITHUB_OUTPUT
+          # Ülke sayısını kontrol et (daha basit yaklaşım)
+          echo "Veritabanındaki ülke sayısı kontrol ediliyor..."
           
-          # Lokasyon verileri yoksa indir
-          if [[ "${COUNTRIES_COUNT}" =~ ^[0-9]+$ ]] && [ "${COUNTRIES_COUNT}" -eq "0" ]; then
+          # Tek satırda, process.exit() çağırarak çalıştırma
+          COUNTRIES_COUNT=$(node -e "const db = require('./src/config/db'); (async () => { try { const result = await db.query('SELECT COUNT(*) FROM countries'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } finally { db.pool.end(); process.exit(0); } })();")
+          
+          # Çıktıyı ayıkla - sadece sayıyı almak için
+          COUNTRIES_COUNT=$(echo "$COUNTRIES_COUNT" | grep -o '[0-9]\+' | tail -1)
+          
+          # Değişken içeriğini göster
+          echo "Bulunan ülke sayısı: $COUNTRIES_COUNT"
+          
+          # GitHub output için ayarla
+          echo "countries_count=$COUNTRIES_COUNT" >> $GITHUB_OUTPUT
+          
+          # Ülke verilerini kontrol et
+          if [ "$COUNTRIES_COUNT" = "0" ]; then
             echo "Ülke verileri bulunamadı, indiriliyor..."
             node src/scripts/fetchCountries.js
             
@@ -74,7 +85,7 @@ jobs:
             echo "İlçe verileri indiriliyor..."
             node src/scripts/fetchCities.js
           else
-            echo "Lokasyon verileri zaten mevcut (${COUNTRIES_COUNT} ülke)."
+            echo "Lokasyon verileri zaten mevcut ($COUNTRIES_COUNT ülke)."
           fi
 
       - name: Check if next year data is available
