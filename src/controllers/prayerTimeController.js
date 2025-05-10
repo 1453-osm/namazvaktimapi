@@ -31,7 +31,7 @@ const getPrayerTimeByDate = async (req, res) => {
         // API'den tarih aralığını al
         const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
         
-        if (dateRangeResponse && dateRangeResponse.isSuccess && dateRangeResponse.data) {
+        if (dateRangeResponse && dateRangeResponse.success && dateRangeResponse.data) {
           const { startDate, endDate } = dateRangeResponse.data;
           
           // Diyanet API'den namaz vakitlerini çek
@@ -41,7 +41,7 @@ const getPrayerTimeByDate = async (req, res) => {
             date
           );
           
-          if (prayerTimesResponse && prayerTimesResponse.isSuccess && prayerTimesResponse.data && prayerTimesResponse.data.length > 0) {
+          if (prayerTimesResponse && prayerTimesResponse.success && prayerTimesResponse.data && prayerTimesResponse.data.length > 0) {
             // API'den gelen veriyi işle
             const prayerTimeData = prayerTimesResponse.data[0];
             
@@ -218,7 +218,7 @@ const getEidTimes = async (req, res) => {
         // Diyanet API'den bayram vakitlerini al
         const eidResponse = await diyanetApi.getEid(cityId);
         
-        if (eidResponse && eidResponse.isSuccess && eidResponse.data) {
+        if (eidResponse && eidResponse.success && eidResponse.data) {
           // Her bayram vakti için veritabanına kaydet
           const savePromises = eidResponse.data.map(async (eid) => {
             return await prayerTimeModel.createEidTime(
