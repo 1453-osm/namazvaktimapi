@@ -146,9 +146,9 @@ async function fetchAndSavePrayerTimes() {
                         // Veritabanına kaydet
                         const insertQuery = `
                             INSERT INTO prayer_times
-                             (city_id, prayer_date, fajr, sunrise, dhuhr, asr, maghrib, isha)
+                             (city_id, date, fajr, sunrise, dhuhr, asr, maghrib, isha)
                              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                             ON CONFLICT (city_id, prayer_date) 
+                             ON CONFLICT (city_id, date) 
                              DO UPDATE SET 
                                 fajr = $3, 
                                 sunrise = $4, 

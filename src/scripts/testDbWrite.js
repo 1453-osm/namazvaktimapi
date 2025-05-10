@@ -66,22 +66,35 @@ async function testDbConnection() {
       console.log(`- ${column.column_name} (${column.data_type}, ${column.is_nullable === 'YES' ? 'NULL' : 'NOT NULL'})`);
     });
     
+    // Gerçek bir city_id alalım
+    console.log('\nGerçek bir ilçe ID\'si alınıyor...');
+    const cityResult = await client.query('SELECT id, name FROM cities LIMIT 1');
+    
+    if (cityResult.rows.length === 0) {
+      throw new Error('Veritabanında hiç ilçe bulunamadı!');
+    }
+    
+    const testCityId = cityResult.rows[0].id;
+    const testCityName = cityResult.rows[0].name;
+    console.log(`Test için kullanılacak ilçe: ${testCityName} (ID: ${testCityId})`);
+    
     // 4. Basit INSERT testi
     console.log('\nBasit INSERT testi yapılıyor...');
+    const testDate = '2023-01-01';
     
     // Önce test verilerinin var olup olmadığını kontrol et
     const checkTestData = await client.query(`
       SELECT COUNT(*) FROM prayer_times 
-      WHERE city_id = 999999 AND prayer_date = '2023-01-01'
-    `);
+      WHERE city_id = $1 AND date = $2
+    `, [testCityId, testDate]);
     
     // Eğer test verileri zaten varsa, önce silelim
     if (parseInt(checkTestData.rows[0].count) > 0) {
       console.log('Eski test verileri siliniyor...');
       await client.query(`
         DELETE FROM prayer_times 
-        WHERE city_id = 999999 AND prayer_date = '2023-01-01'
-      `);
+        WHERE city_id = $1 AND date = $2
+      `, [testCityId, testDate]);
     }
     
     // Transaction başlat
@@ -90,11 +103,11 @@ async function testDbConnection() {
     // Test verilerini ekle
     const insertResult = await client.query(`
       INSERT INTO prayer_times (
-        city_id, prayer_date, fajr, sunrise, dhuhr, asr, maghrib, isha
+        city_id, date, fajr, sunrise, dhuhr, asr, maghrib, isha
       ) VALUES (
-        999999, '2023-01-01', '05:30', '07:15', '12:30', '15:45', '18:00', '19:30'
+        $1, $2, '05:30', '07:15', '12:30', '15:45', '18:00', '19:30'
       ) RETURNING id;
-    `);
+    `, [testCityId, testDate]);
     
     console.log('INSERT sonucu:', insertResult.rows[0]);
     
@@ -105,8 +118,8 @@ async function testDbConnection() {
     // Eklenen veriyi kontrol et
     const verifyResult = await client.query(`
       SELECT * FROM prayer_times 
-      WHERE city_id = 999999 AND prayer_date = '2023-01-01'
-    `);
+      WHERE city_id = $1 AND date = $2
+    `, [testCityId, testDate]);
     
     console.log('\nEklenen veri:', verifyResult.rows[0]);
     
@@ -114,8 +127,8 @@ async function testDbConnection() {
     console.log('\nTemizlik: Test verilerini silme...');
     await client.query(`
       DELETE FROM prayer_times 
-      WHERE city_id = 999999 AND prayer_date = '2023-01-01'
-    `);
+      WHERE city_id = $1 AND date = $2
+    `, [testCityId, testDate]);
     
     console.log('Test verileri silindi.');
     
