@@ -12,6 +12,7 @@
     "fetch-cities": "node src/scripts/fetchCities.js",
     "fetch-prayer-times": "node src/scripts/fetchPrayerTimes.js",
     "fetch-all-prayer-times": "node src/scripts/fetchAllPrayerTimes.js",
+    "test-github": "node src/test-github-actions.js",
     "schedule-updates": "node src/scripts/schedulePrayerTimesUpdate.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -29,6 +30,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
+    "https-proxy-agent": "^7.0.2",
     "pg": "^8.15.6"
   },
   "devDependencies": {

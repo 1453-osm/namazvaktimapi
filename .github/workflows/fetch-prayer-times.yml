@@ -13,10 +13,15 @@ on:
           - 'false'
   
 jobs:
-  fetch-prayer-times:
+  prepare-data:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+    
+    outputs:
+      has_next_year_data: ${{ steps.check-data.outputs.has_next_year_data }}
+      countries_count: ${{ steps.check-countries.outputs.countries_count }}
     
     steps:
       - name: Checkout repository
@@ -31,6 +36,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
+      - name: Test Diyanet API Connection
+        run: |
+          echo "Diyanet API'si bağlantısı test ediliyor..."
+          echo "HTTP_PROXY değişkeni: ${{ env.HTTP_PROXY != '' && 'TANIMLANMIŞ ✅' || 'TANIMLANMAMIŞ ❌' }}" 
+          node src/test-github-actions.js
+        timeout-minutes: 5
+        continue-on-error: true
+      
       - name: Test Database Connection
         run: |
           echo "Veritabanı bağlantısı test ediliyor..."
@@ -42,6 +55,27 @@ jobs:
           echo "Veritabanı şeması hazırlanıyor..."
           node src/config/setupDb.js
         timeout-minutes: 10
+
+      - name: Check location data
+        id: check-countries
+        run: |
+          # Ülke sayısını kontrol et
+          COUNTRIES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM countries'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } finally { db.pool.end(); } }; check();")
+          echo "countries_count=${COUNTRIES_COUNT}" >> $GITHUB_OUTPUT
+          
+          # Lokasyon verileri yoksa indir
+          if [ "$COUNTRIES_COUNT" -eq "0" ]; then
+            echo "Ülke verileri bulunamadı, indiriliyor..."
+            node src/scripts/fetchCountries.js
+            
+            echo "Şehir verileri indiriliyor..."
+            node src/scripts/fetchStates.js
+            
+            echo "İlçe verileri indiriliyor..."
+            node src/scripts/fetchCities.js
+          else
+            echo "Lokasyon verileri zaten mevcut (${COUNTRIES_COUNT} ülke)."
+          fi
 
       - name: Check if next year data is available
         id: check-data
@@ -103,52 +137,88 @@ jobs:
             "
           fi
         continue-on-error: true
+
+  fetch-prayer-times:
+    needs: prepare-data
+    if: ${{ needs.prepare-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+    
+    strategy:
+      matrix:
+        chunk: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      fail-fast: false  # Bir iş başarısız olsa bile diğerleri devam etsin
+      max-parallel: 10  # Eşzamanlı olarak çalışacak maksimum iş sayısı
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
       
-      - name: Fetch yearly prayer times data
-        if: ${{ steps.check-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true' }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Fetch prayer times data (chunk ${{ matrix.chunk }})
+        env:
+          CHUNK_ID: ${{ matrix.chunk }}
         run: |
-          echo "Namaz vakitlerini çekme işlemi başlatılıyor..."
+          echo "Namaz vakitlerini çekme işlemi (parça ${{ matrix.chunk }}/10) başlatılıyor..."
           echo "DATABASE_URL: ${{ env.DATABASE_URL != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
-          echo "Komut: node src/scripts/fetchPrayerTimes.js"
+          echo "HTTP_PROXY: ${{ env.HTTP_PROXY != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
+          echo "CHUNK_ID: ${{ matrix.chunk }}"
           
-          # Lokasyon verilerini kontrol et ve gerekirse indir
-          echo "Lokasyon verileri kontrol ediliyor..."
-          COUNTRIES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM countries'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } finally { db.pool.end(); } }; check();")
-          
-          if [ "$COUNTRIES_COUNT" -eq "0" ]; then
-            echo "Ülke verileri bulunamadı, indiriliyor..."
-            node src/scripts/fetchCountries.js
-            
-            echo "Şehir verileri indiriliyor..."
-            node src/scripts/fetchStates.js
-            
-            echo "İlçe verileri indiriliyor..."
-            node src/scripts/fetchCities.js
-          else
-            echo "Lokasyon verileri zaten mevcut (${COUNTRIES_COUNT} ülke)."
-          fi
-          
-          # Namaz vakitlerini indir
-          NODE_OPTIONS="--max-old-space-size=4096" node src/scripts/fetchPrayerTimes.js
-        timeout-minutes: 240  # 4 saat timeout (uzun bir işlem olabilir)
+          # Paralel çalışma için gerekli parametreleri geçirerek script'i çalıştır
+          NODE_OPTIONS="--max-old-space-size=4096" node src/scripts/fetchAllPrayerTimes.js --chunk=${{ matrix.chunk }} --total-chunks=10
+        timeout-minutes: 120  # Her bir parça için 2 saat timeout (daha kısa sürecek)
+
+  finalize:
+    needs: [prepare-data, fetch-prayer-times]
+    if: ${{ always() && (needs.prepare-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true') }}
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
       
       - name: Test prayer times data
-        if: ${{ steps.check-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true' }}
         run: |
           echo "Veritabanındaki namaz vakitleri sayısı kontrol ediliyor..."
           PRAYER_TIMES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('Hata: ' + e.message); } finally { db.pool.end(); } }; check();")
           echo "Namaz vakitleri sayısı: ${PRAYER_TIMES_COUNT}"
       
-      - name: Handle data not available
-        if: ${{ steps.check-data.outputs.has_next_year_data == 'false' && github.event.inputs.force_update == 'false' }}
-        run: |
-          echo "Gelecek yıl verisi henüz Diyanet API'sinde mevcut değil."
-          echo "Veri çekme işlemi gerçekleştirilmedi."
-          echo "Zorlamak için 'force_update' seçeneğini true olarak ayarlayın."
-      
       - name: Create summary
-        if: ${{ steps.check-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true' }}
         run: |
           echo "Yıllık namaz vakitleri işlemi tamamlandı." >> $GITHUB_STEP_SUMMARY
           PRAYER_TIMES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } finally { db.pool.end(); } }; check();")
-          echo "Veritabanındaki toplam namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY 
+          echo "Veritabanındaki toplam namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY
+          echo "Paralel veri çekme işlemi başarıyla tamamlandı (10 paralel görev)." >> $GITHUB_STEP_SUMMARY
+
+  handle-data-not-available:
+    needs: prepare-data
+    if: ${{ needs.prepare-data.outputs.has_next_year_data == 'false' && github.event.inputs.force_update == 'false' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Handle data not available
+        run: |
+          echo "Gelecek yıl verisi henüz Diyanet API'sinde mevcut değil."
+          echo "Veri çekme işlemi gerçekleştirilmedi."
+          echo "Zorlamak için 'force_update' seçeneğini true olarak ayarlayın." 

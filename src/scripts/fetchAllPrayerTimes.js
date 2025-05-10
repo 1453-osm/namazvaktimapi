@@ -4,6 +4,29 @@ const prayerTimeModel = require('../models/prayerTimeModel');
 const locationModel = require('../models/locationModel');
 const db = require('../config/db');
 
+// Komut satırı argümanlarını işle
+const parseArgs = () => {
+  const args = process.argv.slice(2);
+  const result = {
+    chunk: 1,
+    totalChunks: 1
+  };
+
+  args.forEach(arg => {
+    if (arg.startsWith('--chunk=')) {
+      result.chunk = parseInt(arg.split('=')[1], 10);
+    } else if (arg.startsWith('--total-chunks=')) {
+      result.totalChunks = parseInt(arg.split('=')[1], 10);
+    }
+  });
+
+  return result;
+};
+
+// Çalışma parametreleri
+const params = parseArgs();
+console.log(`Paralel çalışma parametreleri: Parça ${params.chunk}/${params.totalChunks}`);
+
 // Tarih formatını düzenleyen yardımcı fonksiyon
 const formatDate = (date) => {
   return date.toISOString().split('T')[0]; // YYYY-MM-DD formatı
@@ -94,6 +117,21 @@ const fetchAndSavePrayerTimesForCity = async (city, year) => {
   }
 };
 
+// Şehirleri parçalara ayırma fonksiyonu
+const splitArrayIntoChunks = (array, chunkNumber, totalChunks) => {
+  const totalItems = array.length;
+  const chunkSize = Math.ceil(totalItems / totalChunks);
+  const startIndex = (chunkNumber - 1) * chunkSize;
+  let endIndex = startIndex + chunkSize;
+  
+  // Son parçada dizinin dışına çıkmayı önle
+  if (endIndex > totalItems) {
+    endIndex = totalItems;
+  }
+  
+  return array.slice(startIndex, endIndex);
+};
+
 // Ana fonksiyon - Tüm dünya için namaz vakitlerini çek
 const fetchAllPrayerTimes = async () => {
   try {
@@ -104,78 +142,98 @@ const fetchAllPrayerTimes = async () => {
     const currentYear = new Date().getFullYear();
     
     console.log(`\n=== ${currentYear} YILI İÇİN TÜM DÜNYA NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ ===\n`);
+    console.log(`Çalışma modu: Parça ${params.chunk}/${params.totalChunks}`);
+    
+    // Hangi şehirleri bu paralel iş işleyecek
+    let citiesToProcess = [];
     
     // Önce Türkiye'deki önemli şehirleri işle (örnek olarak İstanbul, Ankara, İzmir)
-    console.log('\n--- ÖNCELİKLİ TÜRKİYE ŞEHİRLERİ ---');
-    const priorityCities = await db.query(`
-      SELECT c.*, s.name as state_name, co.name as country_name 
-      FROM cities c
-      JOIN states s ON c.state_id = s.id
-      JOIN countries co ON s.country_id = co.id
-      WHERE co.id = 2 AND (s.id = 539 OR s.id = 522 OR s.id = 547) -- İstanbul, Ankara, İzmir
-      ORDER BY s.name ASC
-    `);
-    
-    if (priorityCities.rows.length > 0) {
-      for (const city of priorityCities.rows) {
-        try {
-          await fetchAndSavePrayerTimesForCity(city, currentYear);
-        } catch (error) {
-          console.error(`${city.name} için işlem başarısız:`, error.message);
-          // Hata olsa bile diğer şehirlerle devam et
-          continue;
+    if (params.chunk === 1) {
+      console.log('\n--- ÖNCELİKLİ TÜRKİYE ŞEHİRLERİ ---');
+      const priorityCities = await db.query(`
+        SELECT c.*, s.name as state_name, co.name as country_name 
+        FROM cities c
+        JOIN states s ON c.state_id = s.id
+        JOIN countries co ON s.country_id = co.id
+        WHERE co.id = 2 AND (s.id = 539 OR s.id = 522 OR s.id = 547) -- İstanbul, Ankara, İzmir
+        ORDER BY s.name ASC
+      `);
+      
+      if (priorityCities.rows.length > 0) {
+        for (const city of priorityCities.rows) {
+          try {
+            await fetchAndSavePrayerTimesForCity(city, currentYear);
+          } catch (error) {
+            console.error(`${city.name} için işlem başarısız:`, error.message);
+            // Hata olsa bile diğer şehirlerle devam et
+            continue;
+          }
         }
       }
     }
     
-    // Sonra diğer Türkiye şehirlerini işle
-    console.log('\n--- DİĞER TÜRKİYE ŞEHİRLERİ ---');
-    const turkishCities = await db.query(`
-      SELECT c.*, s.name as state_name, co.name as country_name 
-      FROM cities c
-      JOIN states s ON c.state_id = s.id
-      JOIN countries co ON s.country_id = co.id
-      WHERE co.id = 2 AND s.id NOT IN (539, 522, 547) -- İstanbul, Ankara, İzmir değil
-      ORDER BY s.name ASC
-    `);
-    
-    if (turkishCities.rows.length > 0) {
-      for (const city of turkishCities.rows) {
-        try {
-          await fetchAndSavePrayerTimesForCity(city, currentYear);
-        } catch (error) {
-          console.error(`${city.name} için işlem başarısız:`, error.message);
-          // Hata olsa bile diğer şehirlerle devam et
-          continue;
+    // Sonra diğer Türkiye şehirlerini işle - Parça 1-3 için
+    if (params.chunk <= 3) {
+      console.log('\n--- DİĞER TÜRKİYE ŞEHİRLERİ ---');
+      const turkishCities = await db.query(`
+        SELECT c.*, s.name as state_name, co.name as country_name 
+        FROM cities c
+        JOIN states s ON c.state_id = s.id
+        JOIN countries co ON s.country_id = co.id
+        WHERE co.id = 2 AND s.id NOT IN (539, 522, 547) -- İstanbul, Ankara, İzmir değil
+        ORDER BY s.name ASC
+      `);
+      
+      if (turkishCities.rows.length > 0) {
+        // Parçalara böl (ilk 3 parça için)
+        const startChunk = Math.min(params.chunk, 3);
+        const citiesChunk = splitArrayIntoChunks(turkishCities.rows, startChunk, 3);
+        
+        for (const city of citiesChunk) {
+          try {
+            await fetchAndSavePrayerTimesForCity(city, currentYear);
+          } catch (error) {
+            console.error(`${city.name} için işlem başarısız:`, error.message);
+            // Hata olsa bile diğer şehirlerle devam et
+            continue;
+          }
         }
       }
     }
     
-    // Son olarak diğer dünya ülkelerini işle
-    console.log('\n--- DİĞER DÜNYA ÜLKELERİ ---');
-    const worldCities = await db.query(`
-      SELECT c.*, s.name as state_name, co.name as country_name 
-      FROM cities c
-      JOIN states s ON c.state_id = s.id
-      JOIN countries co ON s.country_id = co.id
-      WHERE co.id != 2 -- Türkiye değil
-      ORDER BY co.name ASC, s.name ASC
-      LIMIT 5000 -- En fazla 5000 ilçe için işlem yap (API limitleri nedeniyle)
-    `);
-    
-    if (worldCities.rows.length > 0) {
-      for (const city of worldCities.rows) {
-        try {
-          await fetchAndSavePrayerTimesForCity(city, currentYear);
-        } catch (error) {
-          console.error(`${city.name} için işlem başarısız:`, error.message);
-          // Hata olsa bile diğer şehirlerle devam et
-          continue;
+    // Son olarak diğer dünya ülkelerini işle - Parça 4-10 için
+    if (params.chunk >= 4) {
+      console.log('\n--- DİĞER DÜNYA ÜLKELERİ ---');
+      const worldCities = await db.query(`
+        SELECT c.*, s.name as state_name, co.name as country_name 
+        FROM cities c
+        JOIN states s ON c.state_id = s.id
+        JOIN countries co ON s.country_id = co.id
+        WHERE co.id != 2 -- Türkiye değil
+        ORDER BY co.name ASC, s.name ASC
+        LIMIT 10000 -- En fazla 10000 ilçe için işlem yap (API limitleri nedeniyle)
+      `);
+      
+      if (worldCities.rows.length > 0) {
+        // Parçalara böl (kalan 7 parça için)
+        const chunkIndex = params.chunk - 3; // 4. parça için 1, 5. parça için 2, ...
+        const citiesChunk = splitArrayIntoChunks(worldCities.rows, chunkIndex, 7);
+        
+        console.log(`Parça ${params.chunk}: ${citiesChunk.length} şehir işlenecek`);
+        
+        for (const city of citiesChunk) {
+          try {
+            await fetchAndSavePrayerTimesForCity(city, currentYear);
+          } catch (error) {
+            console.error(`${city.name} için işlem başarısız:`, error.message);
+            // Hata olsa bile diğer şehirlerle devam et
+            continue;
+          }
         }
       }
     }
     
-    console.log('\n=== TÜM DÜNYA NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ TAMAMLANDI ===\n');
+    console.log(`\n=== PARÇA ${params.chunk}/${params.totalChunks} İÇİN NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ TAMAMLANDI ===\n`);
   } catch (error) {
     console.error('Toplu veri çekme işlemi sırasında hata oluştu:', error);
   } finally {
@@ -185,9 +243,9 @@ const fetchAllPrayerTimes = async () => {
 };
 
 // Uygulamayı çalıştır
-console.log('Namaz vakitleri güncelleme işlemi başlatılıyor...');
+console.log(`Namaz vakitleri güncelleme işlemi başlatılıyor... (Parça ${params.chunk}/${params.totalChunks})`);
 fetchAllPrayerTimes().then(() => {
-  console.log('İşlem tamamlandı.');
+  console.log(`Parça ${params.chunk}/${params.totalChunks} işlemi tamamlandı.`);
 }).catch(err => {
   console.error('İşlem hatası:', err);
   process.exit(1);
