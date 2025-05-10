@@ -1,10 +1,10 @@
-name: Fetch Cities
+name: Fetch Prayer Times
 
 on:
   workflow_dispatch:  # Sadece manuel olarak tetiklenebilir
-
+  
 jobs:
-  fetch-cities:
+  fetch-prayer-times:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -22,8 +22,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      - name: Fetch cities data
-        run: node src/scripts/fetchCities.js
+      - name: Fetch prayer times data
+        run: node src/scripts/fetchPrayerTimes.js
+        timeout-minutes: 240  # 4 saat timeout (uzun bir işlem olabilir)
       
       - name: Create summary
-        run: echo "İlçe verileri başarıyla çekildi ve veritabanına kaydedildi." >> $GITHUB_STEP_SUMMARY 
+        run: echo "Namaz vakitleri başarıyla çekildi ve veritabanına kaydedildi." >> $GITHUB_STEP_SUMMARY 

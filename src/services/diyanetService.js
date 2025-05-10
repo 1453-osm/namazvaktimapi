@@ -139,6 +139,60 @@ class DiyanetService {
             throw error;
         }
     }
+
+    async getPrayerTimesByDateRange(cityId, startDate, endDate) {
+        try {
+            if (!this.token) {
+                await this.login();
+            }
+
+            if (!cityId || !startDate || !endDate) {
+                throw new Error('Şehir ID, başlangıç tarihi ve bitiş tarihi gereklidir.');
+            }
+
+            console.log(`İstek parametreleri: cityId=${cityId}, startDate=${startDate}, endDate=${endDate}`);
+            
+            const url = `${this.baseURL}/api/PrayerTime/DateRange`;
+            
+            const response = await this.axiosInstance.post(url, {
+                cityId: cityId,
+                endDate: endDate,
+                startDate: startDate
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            console.log(`API yanıt kodu: ${response.status}`);
+            
+            if (!response.data) {
+                console.log('API yanıtı boş veya geçersiz');
+                return { data: [] };
+            }
+            
+            let responseData = response.data;
+            
+            if (responseData && responseData.data) {
+                console.log(`${responseData.data.length} günlük namaz vakti verisi alındı`);
+                return { data: responseData.data };
+            } else if (Array.isArray(responseData)) {
+                console.log(`${responseData.length} günlük namaz vakti verisi alındı`);
+                return { data: responseData };
+            } else {
+                console.log('Beklenmeyen API yanıt yapısı:', JSON.stringify(responseData).substring(0, 200) + '...');
+                return { data: [] };
+            }
+        } catch (error) {
+            if (error.response?.status === 401) {
+                await this.refreshToken();
+                return this.getPrayerTimesByDateRange(cityId, startDate, endDate);
+            }
+            console.error('getPrayerTimesByDateRange hatası:', error.message);
+            throw error;
+        }
+    }
 }
 
 module.exports = new DiyanetService(); 
