@@ -96,30 +96,48 @@ END;
 $$ language 'plpgsql';
 
 -- Her tablo için update trigger'ları
-CREATE TRIGGER update_countries_timestamp
-BEFORE UPDATE ON countries
-FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_countries_timestamp') THEN
+    CREATE TRIGGER update_countries_timestamp
+    BEFORE UPDATE ON countries
+    FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  END IF;
 
-CREATE TRIGGER update_states_timestamp
-BEFORE UPDATE ON states
-FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_states_timestamp') THEN
+    CREATE TRIGGER update_states_timestamp
+    BEFORE UPDATE ON states
+    FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  END IF;
 
-CREATE TRIGGER update_cities_timestamp
-BEFORE UPDATE ON cities
-FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_cities_timestamp') THEN
+    CREATE TRIGGER update_cities_timestamp
+    BEFORE UPDATE ON cities
+    FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  END IF;
 
-CREATE TRIGGER update_prayer_times_timestamp
-BEFORE UPDATE ON prayer_times
-FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_prayer_times_timestamp') THEN
+    CREATE TRIGGER update_prayer_times_timestamp
+    BEFORE UPDATE ON prayer_times
+    FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  END IF;
 
-CREATE TRIGGER update_eid_times_timestamp
-BEFORE UPDATE ON eid_times
-FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_eid_times_timestamp') THEN
+    CREATE TRIGGER update_eid_times_timestamp
+    BEFORE UPDATE ON eid_times
+    FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  END IF;
 
-CREATE TRIGGER update_daily_contents_timestamp
-BEFORE UPDATE ON daily_contents
-FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_daily_contents_timestamp') THEN
+    CREATE TRIGGER update_daily_contents_timestamp
+    BEFORE UPDATE ON daily_contents
+    FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  END IF;
 
-CREATE TRIGGER update_logs_timestamp
-BEFORE UPDATE ON update_logs
-FOR EACH ROW EXECUTE PROCEDURE update_timestamp(); 
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_logs_timestamp') THEN
+    CREATE TRIGGER update_logs_timestamp
+    BEFORE UPDATE ON update_logs
+    FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
+  END IF;
+END
+$$; 
