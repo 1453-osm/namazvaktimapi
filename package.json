@@ -11,6 +11,7 @@
     "fetch-states": "node src/scripts/fetchStates.js",
     "fetch-cities": "node src/scripts/fetchCities.js",
     "fetch-prayer-times": "node src/scripts/fetchPrayerTimes.js",
+    "fetch-all-prayer-times": "node src/scripts/fetchAllPrayerTimes.js",
     "schedule-updates": "node src/scripts/schedulePrayerTimesUpdate.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

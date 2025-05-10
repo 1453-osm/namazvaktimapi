@@ -93,20 +93,49 @@ async function fetchAndSavePrayerTimes() {
         
         // API'den desteklenen tarih aralığını al
         console.log('Diyanet API tarih aralığı alınıyor...');
-        const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
+        let startDate, endDate, dateRanges;
         
-        if (!dateRangeResponse || !dateRangeResponse.success || !dateRangeResponse.data) {
-            console.error('Tarih aralığı alınamadı:', dateRangeResponse);
-            await client.query('ROLLBACK');
-            return;
+        try {
+            const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
+            
+            if (!dateRangeResponse || !dateRangeResponse.success || !dateRangeResponse.data) {
+                console.warn('API tarih aralığı alınamadı, varsayılan değerler kullanılacak');
+                
+                // Varsayılan tarih aralığı kullan
+                const today = new Date();
+                const nextYear = new Date(today);
+                nextYear.setFullYear(today.getFullYear() + 1);
+                
+                startDate = today.toISOString().split('T')[0];
+                endDate = nextYear.toISOString().split('T')[0];
+            } else {
+                // API'den gelen değerleri kullan
+                startDate = dateRangeResponse.data.startDate;
+                endDate = dateRangeResponse.data.endDate;
+            }
+            
+            console.log(`Tarih aralığı: ${startDate} - ${endDate}`);
+            
+            // Tarih aralığını aylık dilimlere böl
+            dateRanges = splitDateRangeByMonth(startDate, endDate);
+            console.log(`Tarih aralığı ${dateRanges.length} aylık dilime bölündü.`);
+        } catch (dateRangeError) {
+            console.error('Tarih aralığı alınırken hata:', dateRangeError);
+            
+            // Varsayılan tarih aralığı kullan
+            const today = new Date();
+            const nextYear = new Date(today);
+            nextYear.setFullYear(today.getFullYear() + 1);
+            
+            startDate = today.toISOString().split('T')[0];
+            endDate = nextYear.toISOString().split('T')[0];
+            
+            console.log(`Varsayılan tarih aralığı: ${startDate} - ${endDate}`);
+            
+            // Tarih aralığını aylık dilimlere böl
+            dateRanges = splitDateRangeByMonth(startDate, endDate);
+            console.log(`Tarih aralığı ${dateRanges.length} aylık dilime bölündü.`);
         }
-        
-        const { startDate, endDate } = dateRangeResponse.data;
-        console.log(`API desteklenen tarih aralığı: ${startDate} - ${endDate}`);
-        
-        // Tarih aralığını aylık dilimlere böl
-        const dateRanges = splitDateRangeByMonth(startDate, endDate);
-        console.log(`Tarih aralığı ${dateRanges.length} aylık dilime bölündü.`);
         
         // İşlem istatistikleri
         let totalSuccess = 0;
@@ -171,7 +200,12 @@ async function fetchAndSavePrayerTimes() {
                                 citySuccess++;
                                 totalPrayerTimesAdded++;
                             } catch (insertError) {
-                                console.error(`Namaz vakti kaydedilirken hata: ${insertError.message}`);
+                                // Eğer bu kayıt zaten varsa (unique constraint violation)
+                                if (insertError.code === '23505') {
+                                    console.log(`${prayerTime.date} tarihli namaz vakti zaten mevcut, atlanıyor.`);
+                                } else {
+                                    console.error(`Namaz vakti kaydedilirken hata: ${insertError.message}`);
+                                }
                             }
                         }
                         
@@ -179,9 +213,15 @@ async function fetchAndSavePrayerTimes() {
                         console.log(`${savedCount}/${prayerTimes.length} namaz vakti başarıyla kaydedildi.`);
                         
                         // Her istek arasında bekle (API istek sınırı için)
-                        await sleep(1500);
+                        const waitTime = 1500 + Math.floor(Math.random() * 1000); // 1.5-2.5 saniye arası rastgele bekle
+                        console.log(`Sonraki istek için ${waitTime}ms bekleniyor...`);
+                        await sleep(waitTime);
                     } catch (rangeError) {
                         console.error(`Tarih aralığı için hata: ${rangeError.message}`);
+                        
+                        // API hataları için daha uzun bekle
+                        console.log('API hatası nedeniyle daha uzun süre bekleniyor (10 saniye)...');
+                        await sleep(10000);
                     }
                 }
                 

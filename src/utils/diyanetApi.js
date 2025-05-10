@@ -81,7 +81,8 @@ const makeApiRequest = async (endpoint, method = 'GET', data = null) => {
       url: `${DIYANET_API_BASE_URL}${endpoint}`,
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       }
     };
     
@@ -89,10 +90,14 @@ const makeApiRequest = async (endpoint, method = 'GET', data = null) => {
       config.data = data;
     }
     
+    console.log(`API isteği gönderiliyor: ${method} ${endpoint}`);
     const response = await axios(config);
     return response.data;
   } catch (error) {
     console.error(`Diyanet API isteği hatası (${endpoint}):`, error);
+    if (error.response) {
+      console.error(`API yanıt detayları: Status: ${error.response.status}, Data:`, error.response.data);
+    }
     throw error;
   }
 };
@@ -120,7 +125,47 @@ const getCities = async (stateId) => {
 
 // Namaz vakitleri için tarih aralığını getir
 const getPrayerTimeDateRange = async () => {
-  return makeApiRequest('/api/PrayerTime/DateRange', 'POST', {});
+  // Deneyeceğimiz endpoint kombinasyonları
+  const endpoints = [
+    { path: '/api/PrayerTime/DateRange', method: 'POST', data: {} },
+    { path: '/api/PrayerTime/DateRange', method: 'GET', data: null },
+    { path: '/api/PrayerTime/GetDateRange', method: 'POST', data: {} },
+    { path: '/api/PrayerTime/GetDateRange', method: 'GET', data: null }
+  ];
+  
+  let lastError = null;
+  
+  // Her endpoint kombinasyonunu dene
+  for (const endpoint of endpoints) {
+    try {
+      console.log(`DateRange isteği deneniyor: ${endpoint.method} ${endpoint.path}`);
+      const result = await makeApiRequest(endpoint.path, endpoint.method, endpoint.data);
+      
+      if (result && result.success && result.data) {
+        console.log('DateRange yanıtı başarılı:', result);
+        return result;
+      }
+    } catch (error) {
+      console.error(`DateRange isteği başarısız (${endpoint.method} ${endpoint.path}):`, error.message);
+      lastError = error;
+      // Bir sonraki endpoint'i denemek için devam et
+    }
+  }
+  
+  console.warn('Tüm DateRange istekleri başarısız oldu, varsayılan değerler kullanılacak');
+  
+  // Tüm denemeler başarısız olursa, varsayılan değerleri kullan
+  const today = new Date();
+  const nextYear = new Date(); 
+  nextYear.setFullYear(today.getFullYear() + 1);
+  
+  return {
+    success: true,
+    data: {
+      startDate: today.toISOString().split('T')[0],
+      endDate: nextYear.toISOString().split('T')[0]
+    }
+  };
 };
 
 // Günlük içerik getir
@@ -142,7 +187,21 @@ const getPrayerTimesByDateRangeAndCity = async (cityId, startDate, endDate) => {
     endDate
   };
   
-  return makeApiRequest('/api/PrayerTime/PrayerTimesByDateRange', 'POST', data);
+  try {
+    // İlk olarak normal endpoint'i dene
+    return await makeApiRequest('/api/PrayerTime/PrayerTimesByDateRange', 'POST', data);
+  } catch (error) {
+    console.error('PrayerTimesByDateRange isteği başarısız:', error.message);
+    
+    // Alternatif endpoint'leri dene
+    try {
+      console.log('Alternatif endpoint deneniyor: GetPrayerTimesByDateRange');
+      return await makeApiRequest('/api/PrayerTime/GetPrayerTimesByDateRange', 'POST', data);
+    } catch (altError) {
+      console.error('Alternatif endpoint de başarısız:', altError.message);
+      throw error; // Orijinal hatayı dışarıya fırlat
+    }
+  }
 };
 
 module.exports = {
