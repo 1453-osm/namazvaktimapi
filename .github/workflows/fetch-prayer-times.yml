@@ -1,7 +1,16 @@
-name: Fetch Prayer Times
+name: Yıllık Namaz Vakitlerini Çek
 
 on:
   workflow_dispatch:  # Sadece manuel olarak tetiklenebilir
+    inputs:
+      force_update:
+        description: 'Mevcut verileri zorlayarak güncelle'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
   
 jobs:
   fetch-prayer-times:
@@ -22,9 +31,74 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      - name: Fetch prayer times data
+      - name: Check if next year data is available
+        id: check-data
+        run: |
+          node -e "
+          const diyanetApi = require('./src/utils/diyanetApi');
+          const fs = require('fs');
+          
+          async function checkNextYearData() {
+            try {
+              console.log('Gelecek yıl verisi kontrol ediliyor...');
+              
+              // API'den desteklenen tarih aralığını al
+              const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
+              
+              if (!dateRangeResponse || !dateRangeResponse.isSuccess || !dateRangeResponse.data) {
+                console.log('Tarih aralığı alınamadı!');
+                process.exit(1);
+              }
+              
+              const { startDate, endDate } = dateRangeResponse.data;
+              console.log(`API desteklenen tarih aralığı: ${startDate} - ${endDate}`);
+              
+              // Gelecek yılın 1 Ocak tarihi
+              const now = new Date();
+              const nextYear = now.getFullYear() + 1;
+              const nextYearStart = new Date(`${nextYear}-01-01`);
+              
+              // API'nin desteklediği bitiş tarihi
+              const apiEndDate = new Date(endDate);
+              
+              // Gelecek yılın başlangıcı API tarafından destekleniyor mu?
+              const nextYearStartSupported = nextYearStart <= apiEndDate;
+              
+              // En azından 6 ay desteklenmesini bekleyelim
+              const sixMonthsNextYear = new Date(nextYear, 6, 1); // Temmuz 1
+              const enoughNextYearSupported = sixMonthsNextYear <= apiEndDate;
+              
+              console.log(`Gelecek yıl (${nextYear}) verisi: ${nextYearStartSupported ? 'Mevcut' : 'Mevcut değil'}`);
+              console.log(`Gelecek yılın en az yarısı: ${enoughNextYearSupported ? 'Destekleniyor' : 'Desteklenmiyor'}`);
+              
+              // GitHub Actions çıktı olarak kaydet
+              fs.writeFileSync(process.env.GITHUB_OUTPUT || '', `has_next_year_data=${enoughNextYearSupported ? 'true' : 'false'}`);
+              
+              return enoughNextYearSupported;
+            } catch (error) {
+              console.error('Hata:', error);
+              process.exit(1);
+            }
+          }
+          
+          checkNextYearData();
+          "
+        continue-on-error: true
+      
+      - name: Fetch yearly prayer times data
+        if: ${{ steps.check-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true' }}
         run: node src/scripts/fetchPrayerTimes.js
         timeout-minutes: 240  # 4 saat timeout (uzun bir işlem olabilir)
       
+      - name: Handle data not available
+        if: ${{ steps.check-data.outputs.has_next_year_data == 'false' && github.event.inputs.force_update == 'false' }}
+        run: |
+          echo "Gelecek yıl verisi henüz Diyanet API'sinde mevcut değil."
+          echo "Veri çekme işlemi gerçekleştirilmedi."
+          echo "Zorlamak için 'force_update' seçeneğini true olarak ayarlayın."
+      
       - name: Create summary
-        run: echo "Namaz vakitleri başarıyla çekildi ve veritabanına kaydedildi." >> $GITHUB_STEP_SUMMARY 
+        if: ${{ steps.check-data.outputs.has_next_year_data == 'true' || github.event.inputs.force_update == 'true' }}
+        run: |
+          echo "Yıllık namaz vakitleri başarıyla çekildi ve veritabanına kaydedildi." >> $GITHUB_STEP_SUMMARY
+          echo "İşlem tamamlandı." >> $GITHUB_STEP_SUMMARY 
