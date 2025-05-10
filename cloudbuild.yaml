@@ -1,0 +1,28 @@
+steps:
+# Docker imajını build et
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/namazvaktimapi-1453/namazvaktimapi-cities-fetcher:$SHORT_SHA', '.']
+
+# İmajı Container Registry'ye gönder
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/namazvaktimapi-1453/namazvaktimapi-cities-fetcher:$SHORT_SHA']
+
+# Cloud Run'a deploy et
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+  - 'run'
+  - 'deploy'
+  - 'namazvaktimapi-cities-fetcher'
+  - '--image=gcr.io/namazvaktimapi-1453/namazvaktimapi-cities-fetcher:$SHORT_SHA'
+  - '--platform=managed'
+  - '--region=us-east1'
+  - '--memory=512Mi'
+  - '--timeout=3600'
+  - '--no-allow-unauthenticated'
+  - '--set-env-vars=DATABASE_URL=postgresql://namazvaktimdb_owner:npg_7iuFLUEXv6Cs@ep-proud-lab-a4dbdbma-pooler.us-east-1.aws.neon.tech/namazvaktimdb?sslmode=require'
+
+images:
+- 'gcr.io/namazvaktimapi-1453/namazvaktimapi-cities-fetcher:$SHORT_SHA'
+
+timeout: '1800s' 

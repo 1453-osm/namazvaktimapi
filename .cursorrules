@@ -1,0 +1,18 @@
+- türkçe konuş
+- node.js kullan
+- temiz bir kod yapısı kullan
+- veritabanı url'si:postgresql://namazvaktimdb_owner:npg_7iuFLUEXv6Cs@ep-proud-lab-a4dbdbma-pooler.us-east-1.aws.neon.tech/namazvaktimdb?sslmode=require
+- diyenet api endpoint'leri;
+giriş:awqatsalah.diyanet.gov.tr/Auth/Login
+token:awqatsalah.diyanet.gov.tr/Auth/RefreshToken/{refreshToken}
+ülkeler:awqatsalah.diyanet.gov.tr/api/Place/Countries
+şehirler:awqatsalah.diyanet.gov.tr/api/Place/States
+ilçeler:awqatsalah.diyanet.gov.tr/api/Place/Cities
+belirli bir ülkeye ait şehirler:awqatsalah.diyanet.gov.tr/api/Place/States/{countryId}
+belirli bir şehre ait ilçelerawqatsalah.diyanet.gov.tr/api/Place/Cities/{stateId}
+namaz vakitleri için tarih aralığı:awqatsalah.diyanet.gov.tr/api/PrayerTime/DateRange
+günlük içerik:awqatsalah.diyanet.gov.tr/api/DailyContent
+bayram:awqatsalah.diyanet.gov.tr/api/PrayerTime/Eid/{cityId}
+- diyanet api Kullanıcı Adı: ozavciosman17@gmail.com - Şifre: cN5+4q%F
+- diyanet api istek sınırı: yer bazında günlük 5, daterange endpoint'i için yer bazında aylık 10 istek
+- cloud run proje adı:namazvaktimapi id:namazvaktimapi-1453
