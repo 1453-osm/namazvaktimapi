@@ -1,0 +1,36 @@
+name: Test Database Write
+
+on:
+  workflow_dispatch:  # Sadece manuel olarak tetiklenebilir
+  
+jobs:
+  test-db-write:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://namazvaktimdb_owner:npg_7iuFLUEXv6Cs@ep-proud-lab-a4dbdbma-pooler.us-east-1.aws.neon.tech/namazvaktimdb?sslmode=require
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Show environment info
+        run: |
+          echo "Node version: $(node -v)"
+          echo "NPM version: $(npm -v)"
+          echo "Working directory: $(pwd)"
+          echo "DATABASE_URL is set: ${{ env.DATABASE_URL != '' }}"
+      
+      - name: Test database write
+        run: node src/scripts/testDbWrite.js
+      
+      - name: Create summary
+        run: echo "Veritabanı yazma testi tamamlandı." >> $GITHUB_STEP_SUMMARY 
