@@ -34,7 +34,7 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        run: npm ci
+        run: npm install
       
       - name: Test Diyanet API Connection
         run: |
@@ -163,7 +163,7 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        run: npm ci
+        run: npm install
       
       - name: Fetch prayer times data (chunk ${{ matrix.chunk }})
         env:
@@ -196,7 +196,7 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        run: npm ci
+        run: npm install
       
       - name: Test prayer times data
         run: |
