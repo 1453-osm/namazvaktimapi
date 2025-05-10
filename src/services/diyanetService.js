@@ -10,7 +10,7 @@ class DiyanetService {
             httpsAgent: new https.Agent({
                 rejectUnauthorized: false
             }),
-            timeout: 15000,
+            timeout: 30000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (compatible; NamazVaktiBot/1.0)'
             }
@@ -105,18 +105,37 @@ class DiyanetService {
                 ? `${this.baseURL}/api/Place/Cities/${stateId}`
                 : `${this.baseURL}/api/Place/Cities`;
 
+            console.log(`İstek URL: ${url}`);
+            
             const response = await this.axiosInstance.get(url, {
                 headers: {
                     'Authorization': `Bearer ${this.token}`
                 }
             });
-
-            return response.data;
+            
+            console.log(`API yanıt kodu: ${response.status}`);
+            
+            if (!response.data) {
+                console.log('API yanıtı boş veya geçersiz');
+                return { data: [] };
+            }
+            
+            let responseData = response.data;
+            
+            if (responseData && responseData.data) {
+                return { data: responseData.data };
+            } else if (Array.isArray(responseData)) {
+                return { data: responseData };
+            } else {
+                console.log('Beklenmeyen API yanıt yapısı:', responseData);
+                return { data: [] };
+            }
         } catch (error) {
             if (error.response?.status === 401) {
                 await this.refreshToken();
                 return this.getCities(stateId);
             }
+            console.error('getCities hatası:', error.message);
             throw error;
         }
     }

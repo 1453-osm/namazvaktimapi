@@ -20,21 +20,34 @@ async function fetchAndSaveCities() {
                 const response = await diyanetService.getCities(state.id);
                 console.log('API yanıtı alındı.');
                 
-                if (!response.isSuccess) {
-                    console.error(`API yanıtı başarısız: ${response.message}`);
+                // Detaylı hata ayıklama
+                console.log('API yanıtı detayları:', JSON.stringify(response).substring(0, 500)); // ilk 500 karakteri logla
+                
+                if (!response || !response.data) {
+                    console.error(`API yanıtı geçersiz: ${JSON.stringify(response)}`);
                     continue;
                 }
                 
-                const cities = response.data;
+                const cities = Array.isArray(response.data) ? response.data : [];
                 console.log(`${state.name} için ${cities.length} ilçe bulundu.`);
+
+                if (cities.length === 0) {
+                    console.log('İlçe verisi bulunamadı, bir sonraki şehre geçiliyor.');
+                    continue;
+                }
 
                 // Veritabanına kaydet
                 console.log('İlçeler veritabanına kaydediliyor...');
                 for (const city of cities) {
+                    if (!city || !city.id) {
+                        console.log('Geçersiz ilçe verisi, atlanıyor:', city);
+                        continue;
+                    }
+                    
                     console.log(`İlçe kaydediliyor: ${city.name} (ID: ${city.id})`);
                     await pool.query(
                         'INSERT INTO cities (id, state_id, code, name) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET state_id = $2, code = $3, name = $4',
-                        [city.id, state.id, city.code, city.name]
+                        [city.id, state.id, city.code || '', city.name]
                     );
                 }
                 console.log(`${state.name} için ilçeler başarıyla kaydedildi.`);
