@@ -60,11 +60,11 @@ jobs:
         id: check-countries
         run: |
           # Ülke sayısını kontrol et
-          COUNTRIES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM countries'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } finally { db.pool.end(); } }; check();")
+          COUNTRIES_COUNT=$(node -e "const db = require('./src/config/db'); async function check() { try { const result = await db.query('SELECT COUNT(*) FROM countries'); console.log(result.rows[0].count); process.exit(0); } catch(e) { console.log('0'); process.exit(0); } }; check();")
           echo "countries_count=${COUNTRIES_COUNT}" >> $GITHUB_OUTPUT
           
           # Lokasyon verileri yoksa indir
-          if [ "$COUNTRIES_COUNT" -eq "0" ]; then
+          if [[ "${COUNTRIES_COUNT}" =~ ^[0-9]+$ ]] && [ "${COUNTRIES_COUNT}" -eq "0" ]; then
             echo "Ülke verileri bulunamadı, indiriliyor..."
             node src/scripts/fetchCountries.js
             
