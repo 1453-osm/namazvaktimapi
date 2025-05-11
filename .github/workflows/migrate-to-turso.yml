@@ -1,0 +1,56 @@
+name: Turso Veritabanına Geçiş
+
+on:
+  workflow_dispatch:  # Sadece manuel olarak tetiklenebilir
+  
+jobs:
+  migrate-to-turso:
+    runs-on: ubuntu-latest
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Test Turso Database Connection
+        run: |
+          echo "Turso veritabanı bağlantısı test ediliyor..."
+          echo "TURSO_DATABASE_URL değişkeni: ${{ env.TURSO_DATABASE_URL != '' && 'TANIMLANMIŞ ✅' || 'TANIMLANMAMIŞ ❌' }}" 
+          echo "TURSO_AUTH_TOKEN değişkeni: ${{ env.TURSO_AUTH_TOKEN != '' && 'TANIMLANMIŞ ✅' || 'TANIMLANMAMIŞ ❌' }}"
+          node -e "const { testConnection } = require('./src/config/turso'); (async () => { try { await testConnection(); console.log('Bağlantı başarılı!'); } catch(e) { console.error('Bağlantı hatası:', e); process.exit(1); } })();"
+
+      - name: Run Migration
+        run: |
+          echo "Turso veritabanına migrasyon başlatılıyor..."
+          node src/scripts/turso/migrateToTurso.js
+        timeout-minutes: 30
+
+      - name: Create summary
+        run: |
+          echo "## Turso Veritabanı Migrasyon Özeti" >> $GITHUB_STEP_SUMMARY
+          
+          # Veri sayılarını al
+          COUNTRIES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM countries'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } }; check();")
+          
+          STATES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM states'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } }; check();")
+          
+          CITIES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM cities'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } }; check();")
+          
+          echo "### Veritabanı Veri Sayıları" >> $GITHUB_STEP_SUMMARY
+          echo "- Ülke sayısı: ${COUNTRIES_COUNT}" >> $GITHUB_STEP_SUMMARY
+          echo "- Şehir sayısı: ${STATES_COUNT}" >> $GITHUB_STEP_SUMMARY
+          echo "- İlçe sayısı: ${CITIES_COUNT}" >> $GITHUB_STEP_SUMMARY
+          
+          echo "Migrasyon işlemi tamamlandı!" >> $GITHUB_STEP_SUMMARY 
