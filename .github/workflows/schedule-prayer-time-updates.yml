@@ -3,9 +3,9 @@ name: Planlanmış Namaz Vakti Güncellemesi
 on:
   workflow_dispatch: # Manuel tetikleme olanağı
   schedule:
-    # Her gün 11:45 UTC'de (GMT+00:00) çalıştır (Türkiye saati ile 14:45)
+    # Her gün 12:25 UTC'de (GMT+00:00) çalıştır (Türkiye saati ile 15:25)
     # 11 Mayıs filtrelemesi Node.js script içinde yapılacak
-    - cron: '45 11 * * *'
+    - cron: '25 12 * * *'
 
 jobs:
   check-update-date:
