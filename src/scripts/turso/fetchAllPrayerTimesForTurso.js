@@ -68,71 +68,155 @@ const createPrayerTimesInBulk = async (cityId, prayerTimesArray) => {
   
   console.log(`Toplam ${prayerTimesArray.length} adet namaz vakti verisi kaydedilecek, ilçe ID: ${cityId}`);
   const savedItems = [];
+  const batchSize = 30; // Her seferde 30 kayıt ekle
   
-  for (const item of prayerTimesArray) {
-    try {
-      // Tarih formatı kontrolü - API yanıt formatı değişmiş olabilir
-      let prayerDate = item.MiladiTarih || null;
+  try {
+    // Verileri gruplar halinde işle
+    for (let i = 0; i < prayerTimesArray.length; i += batchSize) {
+      const batch = prayerTimesArray.slice(i, i + batchSize);
+      const placeholders = [];
+      const values = [];
       
-      // gregorianDateShort veya diğer tarih alanlarını dene
-      if (!prayerDate && item.gregorianDateShort) {
-        prayerDate = formatDate(item.gregorianDateShort);
-      }
-      
-      // gregorianDateLongIso8601 veya diğer ISO tarih alanlarını dene
-      if (!prayerDate && item.gregorianDateLongIso8601) {
-        prayerDate = formatDate(item.gregorianDateLongIso8601);
-      }
-      
-      if (!prayerDate) {
-        console.error(`Kayıt hatası (ilçe ID: ${cityId}): Tarih bilgisi eksik veya geçersiz.`);
-        continue;
-      }
+      for (const item of batch) {
+        try {
+          // Tarih formatı kontrolü - API yanıt formatı değişmiş olabilir
+          let prayerDate = item.MiladiTarih || null;
+          
+          // gregorianDateShort veya diğer tarih alanlarını dene
+          if (!prayerDate && item.gregorianDateShort) {
+            prayerDate = formatDate(item.gregorianDateShort);
+          }
+          
+          // gregorianDateLongIso8601 veya diğer ISO tarih alanlarını dene
+          if (!prayerDate && item.gregorianDateLongIso8601) {
+            prayerDate = formatDate(item.gregorianDateLongIso8601);
+          }
+          
+          if (!prayerDate) {
+            console.error(`Kayıt hatası (ilçe ID: ${cityId}): Tarih bilgisi eksik veya geçersiz.`);
+            continue;
+          }
 
-      // API yanıt formatında farklı alan isimleri kullanılabilir, bunları kontrol edelim
-      const fajr = item.Imsak || item.fajr || null;
-      const sunrise = item.Gunes || item.sunrise || null;
-      const dhuhr = item.Ogle || item.dhuhr || null;
-      const asr = item.Ikindi || item.asr || null;
-      const maghrib = item.Aksam || item.maghrib || null;
-      const isha = item.Yatsi || item.isha || null;
-      const qibla = item.Kible || item.qiblaTime || null;
-      const gregorianDate = item.MiladiTarih || item.gregorianDateShort || prayerDate; 
-      const hijriDate = item.HicriTarih || item.hijriDateShort || null;
+          // API yanıt formatında farklı alan isimleri kullanılabilir, bunları kontrol edelim
+          const fajr = item.Imsak || item.fajr || null;
+          const sunrise = item.Gunes || item.sunrise || null;
+          const dhuhr = item.Ogle || item.dhuhr || null;
+          const asr = item.Ikindi || item.asr || null;
+          const maghrib = item.Aksam || item.maghrib || null;
+          const isha = item.Yatsi || item.isha || null;
+          const qibla = item.Kible || item.qiblaTime || null;
+          const gregorianDate = item.MiladiTarih || item.gregorianDateShort || prayerDate; 
+          const hijriDate = item.HicriTarih || item.hijriDateShort || null;
+          
+          // Her kayıt için değerleri ekle
+          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))');
+          values.push(
+            cityId,
+            prayerDate,
+            fajr,
+            sunrise,
+            dhuhr,
+            asr,
+            maghrib,
+            isha,
+            qibla,
+            gregorianDate,
+            hijriDate
+          );
+          
+          savedItems.push(item);
+        } catch (error) {
+          console.error(`Veri hazırlama hatası (ilçe ID: ${cityId}, tarih: ${item?.MiladiTarih || item?.gregorianDateShort || 'undefined'}):`, error.message);
+        }
+      }
       
-      const query = `
-        INSERT OR REPLACE INTO prayer_times 
-        (city_id, prayer_date, fajr, sunrise, dhuhr, asr, maghrib, isha, qibla, gregorian_date, hijri_date, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-      `;
-      
-      const args = [
-        cityId,
-        prayerDate,
-        fajr,
-        sunrise,
-        dhuhr,
-        asr,
-        maghrib,
-        isha,
-        qibla,
-        gregorianDate,
-        hijriDate
-      ];
-      
-      await client.execute({
-        sql: query,
-        args: args
-      });
-      
-      savedItems.push(item);
-    } catch (error) {
-      console.error(`Kayıt hatası (ilçe ID: ${cityId}, tarih: ${item?.MiladiTarih || item?.gregorianDateShort || 'undefined'}):`, error.message);
+      if (placeholders.length > 0) {
+        // Toplu ekleme sorgusu oluştur
+        const query = `
+          INSERT OR REPLACE INTO prayer_times 
+          (city_id, prayer_date, fajr, sunrise, dhuhr, asr, maghrib, isha, qibla, gregorian_date, hijri_date, updated_at)
+          VALUES ${placeholders.join(', ')}
+        `;
+        
+        // Toplu ekleme işlemini gerçekleştir
+        await client.execute({
+          sql: query,
+          args: values
+        });
+        
+        console.log(`Batch işlemi: ${placeholders.length} kayıt eklendi (${i+1}-${Math.min(i+batch.length, prayerTimesArray.length)}/${prayerTimesArray.length})`);
+      }
     }
+    
+    console.log(`Kayıt işlemi tamamlandı. ${savedItems.length}/${prayerTimesArray.length} veri kaydedildi`);
+    return savedItems;
+  } catch (error) {
+    console.error(`Toplu kayıt işlemi hatası (ilçe ID: ${cityId}):`, error.message);
+    
+    // Hata durumunda, tek tek kaydetmeyi dene (geri dönüş mekanizması)
+    console.log(`Toplu kayıt başarısız oldu, tek tek kaydetme deneniyor...`);
+    const fallbackSavedItems = [];
+    
+    for (const item of prayerTimesArray) {
+      try {
+        // Tarih formatı kontrolü
+        let prayerDate = item.MiladiTarih || null;
+        
+        if (!prayerDate && item.gregorianDateShort) {
+          prayerDate = formatDate(item.gregorianDateShort);
+        }
+        
+        if (!prayerDate && item.gregorianDateLongIso8601) {
+          prayerDate = formatDate(item.gregorianDateLongIso8601);
+        }
+        
+        if (!prayerDate) continue;
+
+        // API yanıt formatında farklı alan isimleri
+        const fajr = item.Imsak || item.fajr || null;
+        const sunrise = item.Gunes || item.sunrise || null;
+        const dhuhr = item.Ogle || item.dhuhr || null;
+        const asr = item.Ikindi || item.asr || null;
+        const maghrib = item.Aksam || item.maghrib || null;
+        const isha = item.Yatsi || item.isha || null;
+        const qibla = item.Kible || item.qiblaTime || null;
+        const gregorianDate = item.MiladiTarih || item.gregorianDateShort || prayerDate; 
+        const hijriDate = item.HicriTarih || item.hijriDateShort || null;
+        
+        const query = `
+          INSERT OR REPLACE INTO prayer_times 
+          (city_id, prayer_date, fajr, sunrise, dhuhr, asr, maghrib, isha, qibla, gregorian_date, hijri_date, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `;
+        
+        const args = [
+          cityId,
+          prayerDate,
+          fajr,
+          sunrise,
+          dhuhr,
+          asr,
+          maghrib,
+          isha,
+          qibla,
+          gregorianDate,
+          hijriDate
+        ];
+        
+        await client.execute({
+          sql: query,
+          args: args
+        });
+        
+        fallbackSavedItems.push(item);
+      } catch (error) {
+        console.error(`Tek kayıt hatası (ilçe ID: ${cityId}, tarih: ${item?.MiladiTarih || item?.gregorianDateShort || 'undefined'}):`, error.message);
+      }
+    }
+    
+    console.log(`Tek tek kayıt işlemi tamamlandı. ${fallbackSavedItems.length}/${prayerTimesArray.length} veri kaydedildi`);
+    return fallbackSavedItems;
   }
-  
-  console.log(`Kayıt işlemi tamamlandı. ${savedItems.length}/${prayerTimesArray.length} veri kaydedildi`);
-  return savedItems;
 };
 
 // API isteği için tekrar deneme mekanizması
