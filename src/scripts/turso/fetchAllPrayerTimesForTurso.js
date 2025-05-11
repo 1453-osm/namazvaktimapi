@@ -7,7 +7,8 @@ const parseArgs = () => {
   const args = process.argv.slice(2);
   const result = {
     chunk: 1,
-    totalChunks: 1
+    totalChunks: 1,
+    yearMode: 'current' // Varsayılan olarak mevcut yıl
   };
 
   args.forEach(arg => {
@@ -15,6 +16,8 @@ const parseArgs = () => {
       result.chunk = parseInt(arg.split('=')[1], 10);
     } else if (arg.startsWith('--total-chunks=')) {
       result.totalChunks = parseInt(arg.split('=')[1], 10);
+    } else if (arg.startsWith('--year-mode=')) {
+      result.yearMode = arg.split('=')[1];
     }
   });
 
@@ -23,7 +26,7 @@ const parseArgs = () => {
 
 // Çalışma parametreleri
 const params = parseArgs();
-console.log(`Paralel çalışma parametreleri: Parça ${params.chunk}/${params.totalChunks}`);
+console.log(`Paralel çalışma parametreleri: Parça ${params.chunk}/${params.totalChunks}, Yıl Modu: ${params.yearMode}`);
 
 // Tarih formatını düzenleyen yardımcı fonksiyon - Çeşitli formatları YYYY-MM-DD'ye çevirir
 const formatDate = (dateStr) => {
@@ -244,9 +247,10 @@ const fetchAllPrayerTimes = async () => {
     
     // Çalışma parametreleri
     const currentYear = new Date().getFullYear();
+    const targetYear = params.yearMode === 'next' ? currentYear + 1 : currentYear;
     
-    console.log(`\n=== ${currentYear} YILI İÇİN TÜM DÜNYA NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ ===\n`);
-    console.log(`Çalışma modu: Parça ${params.chunk}/${params.totalChunks}`);
+    console.log(`\n=== ${targetYear} YILI İÇİN TÜM DÜNYA NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ ===\n`);
+    console.log(`Çalışma modu: Parça ${params.chunk}/${params.totalChunks}, Hedef Yıl: ${targetYear}`);
     
     // Hangi şehirleri bu paralel iş işleyecek
     let citiesToProcess = [];
@@ -266,7 +270,7 @@ const fetchAllPrayerTimes = async () => {
       if (priorityCitiesResult.rows.length > 0) {
         for (const city of priorityCitiesResult.rows) {
           try {
-            await fetchAndSavePrayerTimesForCity(city, currentYear);
+            await fetchAndSavePrayerTimesForCity(city, targetYear);
           } catch (error) {
             console.error(`${city.name} için işlem başarısız:`, error.message);
             // Hata olsa bile diğer şehirlerle devam et
@@ -295,7 +299,7 @@ const fetchAllPrayerTimes = async () => {
         
         for (const city of citiesChunk) {
           try {
-            await fetchAndSavePrayerTimesForCity(city, currentYear);
+            await fetchAndSavePrayerTimesForCity(city, targetYear);
           } catch (error) {
             console.error(`${city.name} için işlem başarısız:`, error.message);
             // Hata olsa bile diğer şehirlerle devam et
@@ -327,7 +331,7 @@ const fetchAllPrayerTimes = async () => {
         
         for (const city of citiesChunk) {
           try {
-            await fetchAndSavePrayerTimesForCity(city, currentYear);
+            await fetchAndSavePrayerTimesForCity(city, targetYear);
           } catch (error) {
             console.error(`${city.name} için işlem başarısız:`, error.message);
             // Hata olsa bile diğer şehirlerle devam et
@@ -337,7 +341,7 @@ const fetchAllPrayerTimes = async () => {
       }
     }
     
-    console.log(`\n=== PARÇA ${params.chunk}/${params.totalChunks} İÇİN NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ TAMAMLANDI ===\n`);
+    console.log(`\n=== PARÇA ${params.chunk}/${params.totalChunks} İÇİN ${targetYear} YILI NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ TAMAMLANDI ===\n`);
     return true;
   } catch (error) {
     console.error('Toplu veri çekme işlemi sırasında hata oluştu:', error);

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:  # Sadece manuel olarak tetiklenebilir
     inputs:
       force_update:
-        description: 'Mevcut verileri zorlayarak güncelle'
+        description: 'Mevcut yıl verisini çek (false: gelecek yıl verisi)'
         required: false
         default: 'false'
         type: choice
@@ -93,10 +93,63 @@ jobs:
       - name: Check if next year data is available
         id: check-data
         run: |
-          # Manuel başlatma durumunda her zaman şu anki yılın verisi çekilsin
+          # Manuel başlatma durumunda force_update parametresine göre karar ver
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "Manuel başlatma, mevcut yılın verisi çekilecek."
-            echo "has_next_year_data=true" >> $GITHUB_OUTPUT
+            if [ "${{ github.event.inputs.force_update }}" == "true" ]; then
+              echo "Manuel başlatma, mevcut yılın verisi çekilecek."
+              echo "has_next_year_data=true" >> $GITHUB_OUTPUT
+            else
+              echo "Manuel başlatma, gelecek yılın verisi kontrol ediliyor..."
+              node -e "
+              const diyanetApi = require('./src/utils/diyanetApi');
+              const fs = require('fs');
+              
+              async function checkNextYearData() {
+                try {
+                  console.log('Gelecek yıl verisi kontrol ediliyor...');
+                  
+                  // API'den desteklenen tarih aralığını al
+                  const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
+                  
+                  if (!dateRangeResponse || !dateRangeResponse.success || !dateRangeResponse.data) {
+                    console.log('Tarih aralığı alınamadı!');
+                    process.exit(1);
+                  }
+                  
+                  const { startDate, endDate } = dateRangeResponse.data;
+                  console.log(`API desteklenen tarih aralığı: ${startDate} - ${endDate}`);
+                  
+                  // Gelecek yılın 1 Ocak tarihi
+                  const now = new Date();
+                  const nextYear = now.getFullYear() + 1;
+                  const nextYearStart = new Date(`${nextYear}-01-01`);
+                  
+                  // API'nin desteklediği bitiş tarihi
+                  const apiEndDate = new Date(endDate);
+                  
+                  // Gelecek yılın başlangıcı API tarafından destekleniyor mu?
+                  const nextYearStartSupported = nextYearStart <= apiEndDate;
+                  
+                  // En azından 6 ay desteklenmesini bekleyelim
+                  const sixMonthsNextYear = new Date(nextYear, 6, 1); // Temmuz 1
+                  const enoughNextYearSupported = sixMonthsNextYear <= apiEndDate;
+                  
+                  console.log(`Gelecek yıl (${nextYear}) verisi: ${nextYearStartSupported ? 'Mevcut' : 'Mevcut değil'}`);
+                  console.log(`Gelecek yılın en az yarısı: ${enoughNextYearSupported ? 'Destekleniyor' : 'Desteklenmiyor'}`);
+                  
+                  // GitHub Actions çıktı olarak kaydet
+                  fs.writeFileSync(process.env.GITHUB_OUTPUT || '', `has_next_year_data=${enoughNextYearSupported ? 'true' : 'false'}`);
+                  
+                  return enoughNextYearSupported;
+                } catch (error) {
+                  console.error('Hata:', error);
+                  process.exit(1);
+                }
+              }
+              
+              checkNextYearData();
+              "
+            fi
           else
             # Otomatik çalışmada gelecek yıl kontrolü yapılır
             node -e "
@@ -182,15 +235,17 @@ jobs:
       - name: Fetch prayer times data (chunk ${{ matrix.chunk }})
         env:
           CHUNK_ID: ${{ matrix.chunk }}
+          TARGET_YEAR: ${{ github.event.inputs.force_update == 'true' && 'current' || 'next' }}
         run: |
           echo "Namaz vakitlerini çekme işlemi (parça ${{ matrix.chunk }}/20) başlatılıyor..."
           echo "TURSO_DATABASE_URL: ${{ env.TURSO_DATABASE_URL != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
           echo "TURSO_AUTH_TOKEN: ${{ env.TURSO_AUTH_TOKEN != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
           echo "HTTP_PROXY: ${{ env.HTTP_PROXY != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
           echo "CHUNK_ID: ${{ matrix.chunk }}"
+          echo "TARGET_YEAR: ${{ env.TARGET_YEAR }}"
           
           # Paralel çalışma için gerekli parametreleri geçirerek script'i çalıştır
-          NODE_OPTIONS="--max-old-space-size=4096" node src/scripts/turso/fetchAllPrayerTimesForTurso.js --chunk=${{ matrix.chunk }} --total-chunks=20
+          NODE_OPTIONS="--max-old-space-size=4096" node src/scripts/turso/fetchAllPrayerTimesForTurso.js --chunk=${{ matrix.chunk }} --total-chunks=20 --year-mode=${{ env.TARGET_YEAR }}
         timeout-minutes: 120  # Her bir parça için 2 saat timeout (daha kısa sürecek)
 
   finalize:
