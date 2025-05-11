@@ -1,0 +1,54 @@
+name: Eski Namaz Vakitlerini Temizleme
+
+on:
+  workflow_dispatch: # Manuel tetikleme olanağı
+  schedule:
+    # Her ayın 1'inde saat 03:00 UTC'de çalıştır
+    - cron: '0 3 1 * *'
+
+jobs:
+  cleanup-old-prayer-times:
+    runs-on: ubuntu-latest
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run cleanup script
+        run: |
+          echo "Eski namaz vakitlerini temizleme işlemi başlatılıyor..."
+          node src/scripts/cleanupOldPrayerTimes.js
+        timeout-minutes: 10
+      
+      - name: Create summary
+        run: |
+          echo "## Eski Namaz Vakitleri Temizleme Özeti" >> $GITHUB_STEP_SUMMARY
+          echo "İşlem tarihi: $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          
+          # Temizlenen kayıtların sayısını kontrol et
+          CLEANUP_LOGS=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT * FROM cleanup_logs ORDER BY created_at DESC LIMIT 1'); if(result.rows.length > 0) { console.log(JSON.stringify(result.rows[0])); } else { console.log('{}'); } } catch(e) { console.log('{}'); } }; check();")
+          
+          RECORDS_DELETED=$(echo $CLEANUP_LOGS | node -e "const data = JSON.parse(require('fs').readFileSync(0, 'utf-8')); console.log(data.records_deleted || 0);")
+          CUTOFF_DATE=$(echo $CLEANUP_LOGS | node -e "const data = JSON.parse(require('fs').readFileSync(0, 'utf-8')); console.log(data.cutoff_date || 'Bilinmiyor');")
+          CREATED_AT=$(echo $CLEANUP_LOGS | node -e "const data = JSON.parse(require('fs').readFileSync(0, 'utf-8')); console.log(data.created_at || 'Bilinmiyor');")
+          
+          echo "Kesim tarihi: ${CUTOFF_DATE}" >> $GITHUB_STEP_SUMMARY
+          echo "Silinen kayıt sayısı: ${RECORDS_DELETED}" >> $GITHUB_STEP_SUMMARY
+          echo "İşlem zamanı: ${CREATED_AT}" >> $GITHUB_STEP_SUMMARY
+          
+          # Güncel namaz vakitleri sayısını kontrol et
+          PRAYER_TIMES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } }; check();")
+          
+          echo "Kalan namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY 

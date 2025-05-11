@@ -8,6 +8,9 @@ const countryRoutes = require('./routes/countries');
 const stateRoutes = require('./routes/states');
 const cityRoutes = require('./routes/cities');
 
+// Scripts
+const { scheduleMonthlyCleanup } = require('./scripts/cleanupOldPrayerTimes');
+
 // Config
 dotenv.config();
 const app = express();
@@ -36,4 +39,8 @@ app.get('/', (req, res) => {
 // Sunucuyu başlat
 app.listen(PORT, () => {
   console.log(`Server ${PORT} portunda çalışıyor`);
+  
+  // Zamanlanmış görevleri başlat
+  scheduleMonthlyCleanup();
+  console.log('Aylık temizleme görevi zamanlandı');
 }); 

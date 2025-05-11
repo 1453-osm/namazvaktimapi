@@ -6,20 +6,13 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "setup-db": "node src/config/setupDb.js",
     "setup-turso": "node src/config/setupTursoDb.js",
-    "fetch-countries": "node src/scripts/fetchCountries.js",
-    "fetch-states": "node src/scripts/fetchStates.js",
-    "fetch-cities": "node src/scripts/fetchCities.js",
-    "fetch-prayer-times": "node src/scripts/fetchPrayerTimes.js",
-    "fetch-all-prayer-times": "node src/scripts/fetchAllPrayerTimes.js",
-    "test-github": "node src/test-github-actions.js",
+    "fetch-countries": "node src/scripts/turso/fetchCountriesForTurso.js",
+    "fetch-states": "node src/scripts/turso/fetchStatesForTurso.js",
+    "fetch-cities": "node src/scripts/turso/fetchCitiesForTurso.js",
+    "fetch-prayer-times": "node src/scripts/turso/fetchAllPrayerTimesForTurso.js",
     "schedule-updates": "node src/scripts/schedulePrayerTimesUpdate.js",
-    "turso-fetch-countries": "node src/scripts/turso/fetchCountriesForTurso.js",
-    "turso-fetch-states": "node src/scripts/turso/fetchStatesForTurso.js",
-    "turso-fetch-cities": "node src/scripts/turso/fetchCitiesForTurso.js",
-    "turso-migrate": "node src/scripts/turso/migrateToTurso.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "schedule-cleanup": "node src/scripts/cleanupOldPrayerTimes.js"
   },
   "keywords": [
     "namaz",
@@ -36,8 +29,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
-    "https-proxy-agent": "^7.0.6",
-    "pg": "^8.15.6"
+    "https-proxy-agent": "^7.0.6"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
