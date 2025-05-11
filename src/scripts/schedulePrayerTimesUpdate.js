@@ -198,13 +198,16 @@ async function checkYearlyUpdateStatus() {
   }
 }
 
-// Kasım kontrol işlemi
-async function novemberCheck() {
+// 11 Mayıs kontrol işlemi
+async function mayCheck() {
   const now = new Date();
-  const isNovember20 = now.getMonth() === 10 && now.getDate() === 20; // Kasım 0-indexed (10)
   
-  if (isNovember20) {
-    console.log('Bugün 20 Kasım, gelecek yıl verisini kontrol ediyoruz...');
+  // 11 Mayıs saat 04:35 GMT+00:00 kontrolü
+  const isMay11 = now.getMonth() === 4 && now.getDate() === 11; // Mayıs 0-indexed (4)
+  const isCorrectTime = now.getUTCHours() === 4 && now.getUTCMinutes() === 35;
+  
+  if (isMay11 && isCorrectTime) {
+    console.log('Bugün 11 Mayıs saat 04:35 GMT+00:00, gelecek yıl verisini kontrol ediyoruz...');
     
     // Bu yıl için yıllık güncelleme yapılmış mı kontrol et
     const isUpdated = await checkYearlyUpdateStatus();
@@ -275,43 +278,45 @@ async function checkPendingUpdates() {
   }
 }
 
-// Günlük kontrol
-async function dailyCheck() {
-  try {
-    console.log('Günlük kontrol başlatılıyor...');
-    
-    // 1. Kasım 20 kontrolü yap
-    await novemberCheck();
-    
-    // 2. Bekleyen güncelleme var mı kontrol et
-    await checkPendingUpdates();
-    
-    // 3. Acil durum güncelleme kontrolü
-    await emergencyUpdate();
-    
-    console.log('Günlük kontrol tamamlandı.');
-  } catch (error) {
-    console.error('Günlük kontrol sırasında hata:', error);
-  }
-}
-
 // Çizelgeli çalıştırma
 function scheduleUpdates() {
   console.log('Namaz vakitleri güncelleme çizelgesi başlatılıyor...');
   
-  // Her gün kontrol et
-  const dailySchedule = () => {
+  // 11 Mayıs 04:35 GMT+00:00 tarihinde çalışacak işlevi ayarlayalım
+  const scheduleSpecificDateCheck = () => {
     const now = new Date();
-    console.log(`${now.toISOString()} - Günlük kontrol başlatılıyor...`);
-    dailyCheck();
+    console.log(`Şu anki zaman: ${now.toISOString()}`);
+    
+    // Bir sonraki 11 Mayıs 04:35 GMT+00:00 tarihini hesaplayalım
+    let targetDate = new Date(Date.UTC(now.getFullYear(), 4, 11, 4, 35, 0)); // Mayıs 0-indexed (4)
+    
+    // Eğer bu yılın 11 Mayıs tarihi geçtiyse, gelecek yılı ayarlayalım
+    if (now > targetDate) {
+      targetDate = new Date(Date.UTC(now.getFullYear() + 1, 4, 11, 4, 35, 0));
+    }
+    
+    // Hedef tarihe ne kadar kaldığını hesaplayalım
+    const timeUntilTarget = targetDate.getTime() - now.getTime();
+    
+    console.log(`Hedef tarih: ${targetDate.toISOString()}`);
+    console.log(`Hedef tarihe kalan süre: ${Math.floor(timeUntilTarget / (1000 * 60 * 60 * 24))} gün ${Math.floor((timeUntilTarget % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))} saat ${Math.floor((timeUntilTarget % (1000 * 60 * 60)) / (1000 * 60))} dakika`);
+    
+    // Hedef tarihte çalışacak işlevi planlayalım
+    setTimeout(() => {
+      console.log('11 Mayıs 04:35 GMT+00:00 kontrolü başlatılıyor...');
+      
+      // Kontrolleri çalıştır
+      mayCheck();
+      checkPendingUpdates();
+      emergencyUpdate();
+      
+      // Bir sonraki yılın kontrol zamanını planla
+      scheduleSpecificDateCheck();
+    }, timeUntilTarget);
   };
   
-  // İlk çalıştırma
-  dailyCheck();
-  
-  // Çizelge oluştur: Her gün
-  const dailyInterval = 24 * 60 * 60 * 1000; // 24 saat
-  setInterval(dailySchedule, dailyInterval);
+  // İlk planlamayı başlat
+  scheduleSpecificDateCheck();
   
   console.log('Güncelleme çizelgesi başlatıldı.');
 }
@@ -322,7 +327,7 @@ if (require.main === module) {
 } else {
   module.exports = { 
     scheduleUpdates, 
-    dailyCheck, 
+    mayCheck, 
     yearlyFullUpdate, 
     checkNextYearData,
     emergencyUpdate

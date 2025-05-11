@@ -1,0 +1,110 @@
+name: Planlanmış Namaz Vakti Güncellemesi
+
+on:
+  workflow_dispatch: # Manuel tetikleme olanağı
+  schedule:
+    # Her gün 04:35 UTC'de (GMT+00:00) çalıştır 
+    # 11 Mayıs filtrelemesi Node.js script içinde yapılacak
+    - cron: '35 4 * * *'
+
+jobs:
+  check-update-date:
+    runs-on: ubuntu-latest
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+    
+    outputs:
+      should_update: ${{ steps.check-date.outputs.should_update }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Check date
+        id: check-date
+        run: |
+          # Şu anki tarihin 11 Mayıs olup olmadığını kontrol et
+          TODAY_DATE=$(date +"%m-%d")
+          IS_MAY_11=$([ "$TODAY_DATE" == "05-11" ] && echo "true" || echo "false")
+          
+          echo "Bugünün tarihi: $(date +'%Y-%m-%d %H:%M:%S UTC')"
+          echo "11 Mayıs mı? $IS_MAY_11"
+          
+          # GitHub Actions çıktısı olarak kaydet
+          echo "should_update=$IS_MAY_11" >> $GITHUB_OUTPUT
+          
+  run-update-script:
+    needs: check-update-date
+    if: ${{ needs.check-update-date.outputs.should_update == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run update checks
+        run: |
+          echo "11 Mayıs namaz vakti güncelleme kontrolü başlatılıyor..."
+          node -e "
+          const { mayCheck, checkPendingUpdates, emergencyUpdate } = require('./src/scripts/schedulePrayerTimesUpdate');
+          
+          async function runChecks() {
+            try {
+              console.log('11 Mayıs kontrolü yapılıyor...');
+              await mayCheck();
+              
+              console.log('Bekleyen güncellemeler kontrol ediliyor...');
+              await checkPendingUpdates();
+              
+              console.log('Acil durum güncellemesi kontrol ediliyor...');
+              await emergencyUpdate();
+              
+              console.log('Tüm kontroller tamamlandı.');
+            } catch (error) {
+              console.error('Kontroller sırasında hata:', error);
+              process.exit(1);
+            }
+          }
+          
+          runChecks();
+          "
+        timeout-minutes: 30
+      
+      - name: Create summary
+        run: |
+          echo "## 11 Mayıs Namaz Vakti Güncelleme Kontrolü" >> $GITHUB_STEP_SUMMARY
+          echo "Kontrol işlemi: $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          
+          # Güncellenmiş namaz vakitleri sayısını kontrol et  
+          PRAYER_TIMES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } }; check();")
+          
+          echo "Veritabanındaki toplam namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY
+          
+          # Güncellenmiş log kayıtlarını kontrol et
+          UPDATE_STATUS=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const year = new Date().getFullYear(); const result = await client.execute('SELECT status FROM update_logs WHERE update_type = \"yearly\" AND update_year = ' + year); if(result.rows.length > 0) { console.log(result.rows[0].status); } else { console.log('none'); } } catch(e) { console.log('error'); } }; check();")
+          
+          echo "Bu yılın güncelleme durumu: ${UPDATE_STATUS}" >> $GITHUB_STEP_SUMMARY 
