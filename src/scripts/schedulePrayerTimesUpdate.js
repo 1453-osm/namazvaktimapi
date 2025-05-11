@@ -202,12 +202,12 @@ async function checkYearlyUpdateStatus() {
 async function mayCheck() {
   const now = new Date();
   
-  // 11 Mayıs saat 04:35 GMT+00:00 kontrolü
+  // 11 Mayıs saat 09:00 GMT+00:00 kontrolü
   const isMay11 = now.getMonth() === 4 && now.getDate() === 11; // Mayıs 0-indexed (4)
-  const isCorrectTime = now.getUTCHours() === 4 && now.getUTCMinutes() === 35;
+  const isCorrectTime = now.getUTCHours() === 9 && now.getUTCMinutes() === 0;
   
   if (isMay11 && isCorrectTime) {
-    console.log('Bugün 11 Mayıs saat 04:35 GMT+00:00, gelecek yıl verisini kontrol ediyoruz...');
+    console.log('Bugün 11 Mayıs saat 09:00 GMT+00:00, gelecek yıl verisini kontrol ediyoruz...');
     
     // Bu yıl için yıllık güncelleme yapılmış mı kontrol et
     const isUpdated = await checkYearlyUpdateStatus();
@@ -282,17 +282,17 @@ async function checkPendingUpdates() {
 function scheduleUpdates() {
   console.log('Namaz vakitleri güncelleme çizelgesi başlatılıyor...');
   
-  // 11 Mayıs 04:35 GMT+00:00 tarihinde çalışacak işlevi ayarlayalım
+  // 11 Mayıs 09:00 GMT+00:00 tarihinde çalışacak işlevi ayarlayalım
   const scheduleSpecificDateCheck = () => {
     const now = new Date();
     console.log(`Şu anki zaman: ${now.toISOString()}`);
     
-    // Bir sonraki 11 Mayıs 04:35 GMT+00:00 tarihini hesaplayalım
-    let targetDate = new Date(Date.UTC(now.getFullYear(), 4, 11, 4, 35, 0)); // Mayıs 0-indexed (4)
+    // Bir sonraki 11 Mayıs 09:00 GMT+00:00 tarihini hesaplayalım
+    let targetDate = new Date(Date.UTC(now.getFullYear(), 4, 11, 9, 0, 0)); // Mayıs 0-indexed (4)
     
     // Eğer bu yılın 11 Mayıs tarihi geçtiyse, gelecek yılı ayarlayalım
     if (now > targetDate) {
-      targetDate = new Date(Date.UTC(now.getFullYear() + 1, 4, 11, 4, 35, 0));
+      targetDate = new Date(Date.UTC(now.getFullYear() + 1, 4, 11, 9, 0, 0));
     }
     
     // Hedef tarihe ne kadar kaldığını hesaplayalım
@@ -303,7 +303,7 @@ function scheduleUpdates() {
     
     // Hedef tarihte çalışacak işlevi planlayalım
     setTimeout(() => {
-      console.log('11 Mayıs 04:35 GMT+00:00 kontrolü başlatılıyor...');
+      console.log('11 Mayıs 09:00 GMT+00:00 kontrolü başlatılıyor...');
       
       // Kontrolleri çalıştır
       mayCheck();
