@@ -25,9 +25,32 @@ const parseArgs = () => {
 const params = parseArgs();
 console.log(`Paralel çalışma parametreleri: Parça ${params.chunk}/${params.totalChunks}`);
 
-// Tarih formatını düzenleyen yardımcı fonksiyon
-const formatDate = (date) => {
-  return date.toISOString().split('T')[0]; // YYYY-MM-DD formatı
+// Tarih formatını düzenleyen yardımcı fonksiyon - Çeşitli formatları YYYY-MM-DD'ye çevirir
+const formatDate = (dateStr) => {
+  if (!dateStr) return null;
+  
+  // YYYY-MM-DD formatını kontrol et (zaten doğru format)
+  if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return dateStr;
+  }
+  
+  // DD.MM.YYYY formatını kontrol et
+  if (dateStr.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+    const parts = dateStr.split('.');
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  
+  // Tarih nesnesi formatını kontrol et
+  try {
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0]; // YYYY-MM-DD formatı
+    }
+  } catch (e) {
+    // Dönüşüm başarısız oldu, orijinal değeri döndür
+  }
+  
+  return dateStr; // Hiçbir format uymuyorsa orijinal değeri döndür
 };
 
 // Belirli bir süre bekleyen fonksiyon 
@@ -36,48 +59,76 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // Namaz vakitlerini veritabanına kaydetme fonksiyonu
 const createPrayerTimesInBulk = async (cityId, prayerTimesArray) => {
   if (!prayerTimesArray || !prayerTimesArray.length) {
+    console.log(`Veri bulunamadı, cityId: ${cityId}`);
     return [];
   }
   
+  console.log(`Toplam ${prayerTimesArray.length} adet namaz vakti verisi kaydedilecek, ilçe ID: ${cityId}`);
   const savedItems = [];
   
   for (const item of prayerTimesArray) {
     try {
-      // Tarih kontrolü yap, eğer MiladiTarih undefined ise kaydetme
-      if (!item || !item.MiladiTarih) {
+      // Tarih formatı kontrolü - API yanıt formatı değişmiş olabilir
+      let prayerDate = item.MiladiTarih || null;
+      
+      // gregorianDateShort veya diğer tarih alanlarını dene
+      if (!prayerDate && item.gregorianDateShort) {
+        prayerDate = formatDate(item.gregorianDateShort);
+      }
+      
+      // gregorianDateLongIso8601 veya diğer ISO tarih alanlarını dene
+      if (!prayerDate && item.gregorianDateLongIso8601) {
+        prayerDate = formatDate(item.gregorianDateLongIso8601);
+      }
+      
+      if (!prayerDate) {
         console.error(`Kayıt hatası (ilçe ID: ${cityId}): Tarih bilgisi eksik veya geçersiz.`);
         continue;
       }
 
+      // API yanıt formatında farklı alan isimleri kullanılabilir, bunları kontrol edelim
+      const fajr = item.Imsak || item.fajr || null;
+      const sunrise = item.Gunes || item.sunrise || null;
+      const dhuhr = item.Ogle || item.dhuhr || null;
+      const asr = item.Ikindi || item.asr || null;
+      const maghrib = item.Aksam || item.maghrib || null;
+      const isha = item.Yatsi || item.isha || null;
+      const qibla = item.Kible || item.qiblaTime || null;
+      const gregorianDate = item.MiladiTarih || item.gregorianDateShort || prayerDate; 
+      const hijriDate = item.HicriTarih || item.hijriDateShort || null;
+      
       const query = `
         INSERT OR REPLACE INTO prayer_times 
         (city_id, prayer_date, fajr, sunrise, dhuhr, asr, maghrib, isha, qibla, gregorian_date, hijri_date, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `;
       
+      const args = [
+        cityId,
+        prayerDate,
+        fajr,
+        sunrise,
+        dhuhr,
+        asr,
+        maghrib,
+        isha,
+        qibla,
+        gregorianDate,
+        hijriDate
+      ];
+      
       await client.execute({
         sql: query,
-        args: [
-          cityId,
-          item.MiladiTarih,
-          item.Imsak || null,
-          item.Gunes || null,
-          item.Ogle || null,
-          item.Ikindi || null,
-          item.Aksam || null,
-          item.Yatsi || null,
-          item.Kible || null,
-          item.MiladiTarih || null,
-          item.HicriTarih || null
-        ]
+        args: args
       });
       
       savedItems.push(item);
     } catch (error) {
-      console.error(`Kayıt hatası (ilçe ID: ${cityId}, tarih: ${item?.MiladiTarih || 'undefined'}):`, error.message);
+      console.error(`Kayıt hatası (ilçe ID: ${cityId}, tarih: ${item?.MiladiTarih || item?.gregorianDateShort || 'undefined'}):`, error.message);
     }
   }
   
+  console.log(`Kayıt işlemi tamamlandı. ${savedItems.length}/${prayerTimesArray.length} veri kaydedildi`);
   return savedItems;
 };
 
@@ -96,7 +147,16 @@ const retryFetch = async (city, startDate, endDate, maxRetries = 3, retryDelay =
         endDate
       );
       
+      console.log(`API Sonucu: Başarılı=${result ? 'Evet' : 'Hayır'}, Data=${result?.data ? `${result.data.length} adet` : 'Yok'}`);
+      
       if (result && result.data && result.data.length > 0) {
+        // Yeni API yanıt formatını kontrol et
+        const firstItem = result.data[0];
+        if (firstItem) {
+          const fields = Object.keys(firstItem).join(', ');
+          console.log(`API veri yapısı: ${fields.substring(0, 100)}...`);
+        }
+        
         return result;
       } else {
         console.warn(`[${city.name}] ${startDate} - ${endDate} aralığında veri bulunamadı.`);
@@ -127,18 +187,15 @@ const fetchAndSavePrayerTimesForCity = async (city, year) => {
     console.log(`\n[${city.name} (${city.id})] için ${year} yılı namaz vakitlerini çekme işlemi başlıyor...`);
     
     // Yılın başlangıç ve bitiş tarihlerini belirle
-    const startDate = new Date(year, 0, 1); // 1 Ocak
-    const endDate = new Date(year, 11, 31); // 31 Aralık
-    
-    const startDateStr = formatDate(startDate);
-    const endDateStr = formatDate(endDate);
+    const startDate = `${year}-01-01`; // 1 Ocak
+    const endDate = `${year}-12-31`; // 31 Aralık
     
     let totalDays = 0;
     let result;
     
     try {
       // Tekrar deneme mekanizması ile yıllık veriyi tek seferde çek
-      result = await retryFetch(city, startDateStr, endDateStr);
+      result = await retryFetch(city, startDate, endDate);
       
       if (result && result.data && result.data.length > 0) {
         // API'den gelen verileri veritabanına kaydet

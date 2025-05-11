@@ -13,7 +13,6 @@
     "fetch-cities": "node src/scripts/fetchCities.js",
     "fetch-prayer-times": "node src/scripts/fetchPrayerTimes.js",
     "fetch-all-prayer-times": "node src/scripts/fetchAllPrayerTimes.js",
-    "check-missing-data": "node src/scripts/checkAndFixMissingData.js",
     "test-github": "node src/test-github-actions.js",
     "schedule-updates": "node src/scripts/schedulePrayerTimesUpdate.js",
     "turso-fetch-countries": "node src/scripts/turso/fetchCountriesForTurso.js",

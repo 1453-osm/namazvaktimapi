@@ -239,32 +239,3 @@ jobs:
           echo "Gelecek yıl verisi henüz Diyanet API'sinde mevcut değil."
           echo "Veri çekme işlemi gerçekleştirilmedi."
           echo "Zorlamak için 'force_update' seçeneğini true olarak ayarlayın." 
-          
-  check-missing-data:
-    needs: [finalize]
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    env:
-      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-      HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm install
-      
-      - name: Check and fix missing data
-        run: |
-          echo "Eksik veri kontrolü Turso veritabanında yapılacak..."
-          # TODO: Turso için checkAndFixMissingDataForTurso.js scripti oluşturulmalı
-          node src/scripts/turso/checkAndFixMissingDataForTurso.js
-        timeout-minutes: 30 
