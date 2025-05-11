@@ -328,6 +328,7 @@ if (require.main === module) {
   module.exports = { 
     scheduleUpdates, 
     mayCheck, 
+    checkPendingUpdates,
     yearlyFullUpdate, 
     checkNextYearData,
     emergencyUpdate
