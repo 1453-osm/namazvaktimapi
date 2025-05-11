@@ -41,7 +41,27 @@ jobs:
         run: |
           echo "Diyanet API'si bağlantısı test ediliyor..."
           echo "HTTP_PROXY değişkeni: ${{ env.HTTP_PROXY != '' && 'TANIMLANMIŞ ✅' || 'TANIMLANMAMIŞ ❌' }}" 
-          node src/test-github-actions.js
+          node -e "
+            const diyanetApi = require('./src/utils/diyanetApi');
+            
+            async function testConnection() {
+              try {
+                console.log('Diyanet API bağlantısı test ediliyor...');
+                const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
+                if (dateRangeResponse && dateRangeResponse.success) {
+                  console.log('Diyanet API bağlantısı başarılı ✅');
+                  console.log('Desteklenen tarih aralığı:', dateRangeResponse.data);
+                } else {
+                  console.error('Diyanet API bağlantısı başarısız ❌');
+                  console.error('Yanıt:', dateRangeResponse);
+                }
+              } catch (error) {
+                console.error('Diyanet API bağlantı hatası:', error.message);
+              }
+            }
+            
+            testConnection();
+          "
         timeout-minutes: 5
         continue-on-error: true
       
