@@ -3,9 +3,9 @@ name: Planlanmış Namaz Vakti Güncellemesi
 on:
   workflow_dispatch: # Manuel tetikleme olanağı
   schedule:
-    # Her gün 11:00 UTC'de (GMT+00:00) çalıştır (Türkiye saati ile 14:00)
+    # Her gün 11:45 UTC'de (GMT+00:00) çalıştır (Türkiye saati ile 14:45)
     # 11 Mayıs filtrelemesi Node.js script içinde yapılacak
-    - cron: '0 11 * * *'
+    - cron: '45 11 * * *'
 
 jobs:
   check-update-date:
@@ -109,15 +109,22 @@ jobs:
           
           echo "Bu yılın güncelleme durumu: ${UPDATE_STATUS}" >> $GITHUB_STEP_SUMMARY
 
-  # Her çalıştırmada namaz vakitlerini doğrudan çekmek için yeni bir job
+  # Namaz vakitlerini paralel olarak çekmek için job
   fetch-prayer-times:
-    needs: [check-update-date]
-    # 11 Mayıs olmasa da her zaman çalışacak
+    needs: check-update-date
+    # Sadece 11 Mayıs'ta veya manuel tetiklendiğinde çalışacak
+    if: ${{ needs.check-update-date.outputs.should_update == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     env:
       TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
       TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+    
+    strategy:
+      matrix:
+        chunk: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      fail-fast: false  # Bir iş başarısız olsa bile diğerleri devam etsin
+      max-parallel: 10  # Eşzamanlı olarak çalışacak maksimum iş sayısı
     
     steps:
       - name: Checkout repository
@@ -132,10 +139,10 @@ jobs:
       - name: Install dependencies
         run: npm install
       
-      - name: Fetch prayer times
+      - name: Fetch prayer times (chunk ${{ matrix.chunk }})
         run: |
-          echo "Namaz vakitlerini çekme işlemi başlatılıyor..."
-          node src/scripts/turso/fetchAllPrayerTimesForTurso.js --chunk=1 --total-chunks=1
+          echo "Namaz vakitlerini çekme işlemi (parça ${{ matrix.chunk }}/10) başlatılıyor..."
+          node src/scripts/turso/fetchAllPrayerTimesForTurso.js --chunk=${{ matrix.chunk }} --total-chunks=10
         timeout-minutes: 60
       
       - name: Verify prayer times data
@@ -144,5 +151,5 @@ jobs:
           PRAYER_TIMES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } }; check();")
           echo "Namaz vakitleri sayısı: ${PRAYER_TIMES_COUNT}"
           
-          echo "## Namaz Vakitleri Güncelleme Özeti" >> $GITHUB_STEP_SUMMARY
+          echo "## Namaz Vakitleri Güncelleme Özeti (Parça ${{ matrix.chunk }}/10)" >> $GITHUB_STEP_SUMMARY
           echo "Veritabanındaki toplam namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY 
