@@ -107,4 +107,42 @@ jobs:
           # Güncellenmiş log kayıtlarını kontrol et
           UPDATE_STATUS=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const year = new Date().getFullYear(); const result = await client.execute('SELECT status FROM update_logs WHERE update_type = \"yearly\" AND update_year = ' + year); if(result.rows.length > 0) { console.log(result.rows[0].status); } else { console.log('none'); } } catch(e) { console.log('error'); } }; check();")
           
-          echo "Bu yılın güncelleme durumu: ${UPDATE_STATUS}" >> $GITHUB_STEP_SUMMARY 
+          echo "Bu yılın güncelleme durumu: ${UPDATE_STATUS}" >> $GITHUB_STEP_SUMMARY
+
+  # Her çalıştırmada namaz vakitlerini doğrudan çekmek için yeni bir job
+  fetch-prayer-times:
+    needs: [check-update-date]
+    # 11 Mayıs olmasa da her zaman çalışacak
+    runs-on: ubuntu-latest
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Fetch prayer times
+        run: |
+          echo "Namaz vakitlerini çekme işlemi başlatılıyor..."
+          node src/scripts/turso/fetchAllPrayerTimesForTurso.js --chunk=1 --total-chunks=1
+        timeout-minutes: 60
+      
+      - name: Verify prayer times data
+        run: |
+          echo "Namaz vakitleri sayısı kontrol ediliyor..."
+          PRAYER_TIMES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } }; check();")
+          echo "Namaz vakitleri sayısı: ${PRAYER_TIMES_COUNT}"
+          
+          echo "## Namaz Vakitleri Güncelleme Özeti" >> $GITHUB_STEP_SUMMARY
+          echo "Veritabanındaki toplam namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY 
