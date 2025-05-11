@@ -72,7 +72,7 @@ async function checkNextYearData() {
 }
 
 // Namaz vakitlerini çek ve kaydet
-async function fetchAllPrayerTimes(targetYear) {
+async function fetchAllPrayerTimes() {
   try {
     console.log('Tüm namaz vakitlerini çekme işlemi başlatılıyor...');
     
@@ -91,39 +91,32 @@ async function fetchAllPrayerTimes(targetYear) {
 }
 
 // Yıllık tam güncelleme
-async function yearlyFullUpdate(targetYear) {
+async function yearlyFullUpdate() {
   try {
     console.log('Yıllık tam güncelleme başlatılıyor...');
     
-    // Hedef yıl belirtilmemişse gelecek yılı kullan
-    const updateYear = targetYear ? parseInt(targetYear) : new Date().getFullYear() + 1;
-    console.log(`Hedef yıl: ${updateYear}`);
-    
-    // Gelecek yıl verisi kontrol et (hedef yıl gelecek yılsa)
-    let hasNextYearData = true;
-    if (updateYear > new Date().getFullYear()) {
-      hasNextYearData = await checkNextYearData();
-    }
+    // Gelecek yıl verisi kontrol et
+    const hasNextYearData = await checkNextYearData();
     
     if (hasNextYearData) {
-      console.log(`${updateYear} yılı verisi mevcut, tam güncelleme yapılıyor...`);
-      await fetchAllPrayerTimes(updateYear);
+      console.log('Gelecek yıl verisi mevcut, tam güncelleme yapılıyor...');
+      await fetchAllPrayerTimes();
       
       // İşlemi bu yıl için tamamlandı olarak işaretle
       const now = new Date();
-      const currentYear = now.getFullYear();
+      const year = now.getFullYear();
       await client.execute({
         sql: `
           INSERT OR REPLACE INTO update_logs (update_type, update_year, status, updated_at)
           VALUES (?, ?, ?, datetime('now'))
         `,
-        args: ['yearly', currentYear, 'completed']
+        args: ['yearly', year, 'completed']
       });
       
-      console.log(`${currentYear} yılı için yıllık güncelleme tamamlandı ve kayıt edildi.`);
+      console.log(`${year} yılı için yıllık güncelleme tamamlandı ve kayıt edildi.`);
       return true;
     } else {
-      console.log(`${updateYear} yılı verisi henüz mevcut değil, güncelleme ertelendi.`);
+      console.log('Gelecek yıl verisi henüz mevcut değil, güncelleme ertelendi.');
       return false;
     }
   } catch (error) {
@@ -242,8 +235,8 @@ async function checkYearlyUpdateStatus() {
   }
 }
 
-// 20 Kasım kontrolü işlemi
-async function novemberCheck(targetYear) {
+// 11 Mayıs kontrolü işlemi
+async function novemberCheck() {
   const now = new Date();
   
   // 20 Kasım saat 09:00 GMT+00:00 kontrolü
@@ -253,23 +246,17 @@ async function novemberCheck(targetYear) {
   // GitHub Actions için her zaman çalışmasını sağla
   const isGithubActions = process.env.GITHUB_ACTIONS === 'true';
   
-  // Hedef yıl parametresi varsa veya doğru zamanda çalışıyorsa işlemi yap
-  if (isGithubActions || (isNov20 && isCorrectTime) || targetYear) {
+  if (isGithubActions || (isNov20 && isCorrectTime)) {
     console.log('20 Kasım saat 09:00 GMT+00:00 kontrolü veya GitHub Actions çalışması başlatılıyor...');
-    
-    // Hedef yıl belirtilmişse onu kullan
-    const updateYear = targetYear ? parseInt(targetYear) : new Date().getFullYear() + 1;
-    console.log(`Hedef yıl: ${updateYear}`);
     
     // Bu yıl için yıllık güncelleme yapılmış mı kontrol et
     const isUpdated = await checkYearlyUpdateStatus();
     
-    // Hedef yıl belirtilmişse veya henüz güncelleme yapılmamışsa
-    if (targetYear || !isUpdated) {
+    if (!isUpdated) {
       // Gelecek yıl verisi kontrol edip, varsa indir
-      const success = await yearlyFullUpdate(updateYear);
+      const success = await yearlyFullUpdate();
       
-      if (!success && !targetYear) {
+      if (!success) {
         console.log('Gelecek yıl verisi henüz mevcut değil, 3 günde bir kontrol edilecek.');
         
         // Takip durumunu kaydet

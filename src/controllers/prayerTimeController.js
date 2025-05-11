@@ -13,7 +13,6 @@ const getPrayerTimeByDate = async (req, res) => {
       });
     }
     
-    // Tarih formatı kontrolü
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(date)) {
       return res.status(400).json({
@@ -22,30 +21,22 @@ const getPrayerTimeByDate = async (req, res) => {
       });
     }
     
-    // Veritabanından namaz vakitlerini kontrol et
     let prayerTime = await prayerTimeModel.getPrayerTimeByDate(cityId, date);
     
-    // Veritabanında yoksa Diyanet API'den çek
     if (!prayerTime) {
       try {
-        // API'den tarih aralığını al
         const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
         
         if (dateRangeResponse && dateRangeResponse.success && dateRangeResponse.data) {
-          const { startDate, endDate } = dateRangeResponse.data;
-          
-          // Diyanet API'den namaz vakitlerini çek
           const prayerTimesResponse = await diyanetApi.getPrayerTimesByDateRangeAndCity(
             cityId, 
-            date, // Tek günlük veri için aynı tarih
+            date,
             date
           );
           
           if (prayerTimesResponse && prayerTimesResponse.success && prayerTimesResponse.data && prayerTimesResponse.data.length > 0) {
-            // API'den gelen veriyi işle
             const prayerTimeData = prayerTimesResponse.data[0];
             
-            // Veritabanına kaydet
             prayerTime = await prayerTimeModel.createPrayerTime(
               parseInt(cityId),
               date,
@@ -99,7 +90,6 @@ const getPrayerTimesByDateRange = async (req, res) => {
       });
     }
     
-    // Tarih formatı kontrolü
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
       return res.status(400).json({
@@ -108,13 +98,10 @@ const getPrayerTimesByDateRange = async (req, res) => {
       });
     }
     
-    // Eksik günleri belirle
     const dbPrayerTimes = await prayerTimeModel.getPrayerTimesByDateRange(cityId, startDate, endDate);
     
-    // Veritabanında bulunan tarihleri set olarak tut
     const existingDates = new Set(dbPrayerTimes.map(pt => pt.date));
     
-    // Tüm tarih aralığı oluştur
     const allDates = [];
     let currentDate = new Date(startDate);
     const lastDate = new Date(endDate);
@@ -124,30 +111,25 @@ const getPrayerTimesByDateRange = async (req, res) => {
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
-    // Eksik tarihleri bul
     const missingDates = allDates.filter(date => !existingDates.has(date));
     
-    // Eksik tarihler varsa, API'den çek ve veritabanına ekle
     if (missingDates.length > 0) {
       try {
-        // İstek yükünü azaltmak için aylık dilimlere bölelim
         const monthGroups = {};
         
         missingDates.forEach(date => {
-          const month = date.substring(0, 7); // YYYY-MM formatı
+          const month = date.substring(0, 7);
           if (!monthGroups[month]) {
             monthGroups[month] = [];
           }
           monthGroups[month].push(date);
         });
         
-        // Her ay için ayrı istek yap
         for (const month in monthGroups) {
           const monthDates = monthGroups[month];
           const monthStartDate = monthDates[0];
           const monthEndDate = monthDates[monthDates.length - 1];
           
-          // Diyanet API'den bu tarih aralığı için namaz vakitlerini çek
           const prayerTimesResponse = await diyanetApi.getPrayerTimesByDateRangeAndCity(
             cityId, 
             monthStartDate,
@@ -155,7 +137,6 @@ const getPrayerTimesByDateRange = async (req, res) => {
           );
           
           if (prayerTimesResponse && prayerTimesResponse.success && prayerTimesResponse.data) {
-            // Her günü veritabanına kaydet
             const savePromises = prayerTimesResponse.data.map(async (pt) => {
               return await prayerTimeModel.createPrayerTime(
                 parseInt(cityId),
@@ -176,7 +157,6 @@ const getPrayerTimesByDateRange = async (req, res) => {
           }
         }
         
-        // Güncel verileri tekrar çek
         const updatedPrayerTimes = await prayerTimeModel.getPrayerTimesByDateRange(cityId, startDate, endDate);
         dbPrayerTimes.push(...updatedPrayerTimes.filter(pt => !existingDates.has(pt.date)));
       } catch (apiError) {
@@ -209,45 +189,40 @@ const getEidTimes = async (req, res) => {
       });
     }
     
-    // Veritabanından bayram vakitlerini kontrol et
     let eidTimes = await prayerTimeModel.getEidTimes(cityId);
     
-    // Veritabanında yoksa veya az ise Diyanet API'den çek
-    if (eidTimes.length === 0) {
+    if (!eidTimes || eidTimes.length === 0) {
       try {
-        // Diyanet API'den bayram vakitlerini al
         const eidResponse = await diyanetApi.getEid(cityId);
         
         if (eidResponse && eidResponse.success && eidResponse.data) {
-          // Her bayram vakti için veritabanına kaydet
-          const savePromises = eidResponse.data.map(async (eid) => {
+          const savePromises = eidResponse.data.map(async (eidData) => {
             return await prayerTimeModel.createEidTime(
               parseInt(cityId),
-              eid.date,
-              eid.time,
-              eid.type
+              eidData.date,
+              eidData.time,
+              eidData.type
             );
           });
           
           await Promise.all(savePromises);
           
-          // Güncel verileri tekrar çek
           eidTimes = await prayerTimeModel.getEidTimes(cityId);
         }
       } catch (apiError) {
-        console.error('Diyanet API bayram vakitleri hatası:', apiError);
+        console.error('Diyanet API bayram namazı vakitleri hatası:', apiError);
       }
     }
     
     res.status(200).json({
       status: 'success',
-      data: eidTimes
+      data: eidTimes || []
     });
   } catch (error) {
-    console.error('Bayram vakitlerini getirirken hata:', error);
+    console.error('Bayram namazı vakitlerini getirirken hata:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Bayram vakitlerini getirirken bir hata oluştu'
+      message: 'Bayram namazı vakitlerini getirirken bir hata oluştu'
     });
   }
 };

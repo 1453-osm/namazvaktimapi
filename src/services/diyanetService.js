@@ -273,10 +273,7 @@ class DiyanetService {
 
             console.log(`İstek parametreleri: cityId=${cityId}, startDate=${startDate}, endDate=${endDate}`);
             
-            // GitHub Actions ortamında alternatif endpoint kontrolü
-            const url = this.isGithubActions ? 
-                `${this.baseURL}/api/PrayerTime/DateRange?cityId=${cityId}&startDate=${startDate}&endDate=${endDate}` : 
-                `${this.baseURL}/api/PrayerTime/DateRange`;
+            const url = `${this.baseURL}/api/PrayerTime/DateRange`;
             
             // Günlük payloadu detaylı logla
             const payload = {
@@ -289,39 +286,13 @@ class DiyanetService {
             await this.throttleRequest();
             
             try {
-                // İstek metodunu GitHub Actions için kontrol et
-                let response;
-                if (this.isGithubActions) {
-                    // GitHub Actions'da önce GET ile dene
-                    try {
-                        console.log(`GitHub Actions ortamında GET isteği deneniyor: ${url}`);
-                        response = await this.axiosInstance.get(url, {
-                            headers: {
-                                'Authorization': `Bearer ${this.token}`,
-                                'Content-Type': 'application/json'
-                            }
-                        });
-                    } catch (getError) {
-                        console.log(`GET isteği başarısız (${getError.message}), POST deneniyor...`);
-                        // Çok kısa bir süre bekle
-                        await this.sleep(100);
-                        // GET başarısız olursa POST dene
-                        response = await this.axiosInstance.post(`${this.baseURL}/api/PrayerTime/DateRange`, payload, {
-                            headers: {
-                                'Authorization': `Bearer ${this.token}`,
-                                'Content-Type': 'application/json'
-                            }
-                        });
+                // Doğrudan POST isteği kullan
+                const response = await this.axiosInstance.post(url, payload, {
+                    headers: {
+                        'Authorization': `Bearer ${this.token}`,
+                        'Content-Type': 'application/json'
                     }
-                } else {
-                    // Normal ortamda daima POST kullan
-                    response = await this.axiosInstance.post(url, payload, {
-                        headers: {
-                            'Authorization': `Bearer ${this.token}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                }
+                });
                 
                 if (!response.data) {
                     console.log('API yanıtı boş veya geçersiz');
@@ -359,10 +330,10 @@ class DiyanetService {
                         return this.getPrayerTimesByDateRange(cityId, startDate, endDate, retryCount + 1);
                     }
                     
-                    // 404 Not Found - Endpoint bulunamadı, GitHub Actions'da farklı bir yaklaşım dene
-                    if (error.response.status === 404 && this.isGithubActions && retryCount < 3) {
-                        console.log('404 hatası alındı, GitHub Actions için farklı bir yaklaşım deneniyor...');
-                        // Kısa bir bekleme süresi - paralel çalışma için daha kısa
+                    // 404 Not Found - Endpoint bulunamadı
+                    if (error.response.status === 404 && retryCount < 3) {
+                        console.log('404 hatası alındı, yeniden login deneniyor...');
+                        // Kısa bir bekleme süresi
                         await this.sleep(1000);
                         // Yeniden login ol
                         await this.login();

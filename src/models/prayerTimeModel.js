@@ -15,7 +15,6 @@ const createPrayerTime = async (prayerTimeData) => {
     qiblaTime,
     gregorianDate,
     hijriDate,
-    // Yeni alanlar
     gregorianDateShort,
     gregorianDateLong,
     gregorianDateIso8601,
@@ -106,11 +105,10 @@ const createPrayerTime = async (prayerTimeData) => {
 
 // Diyanet API'den gelen verileri veritabanı formatına dönüştür
 const formatPrayerTimeFromAPI = (apiData, cityId) => {
-  // API'den gelen veriyi ISO tarih formatına dönüştür
   const dateStr = apiData.gregorianDateShortIso8601 || apiData.gregorianDateShort;
   const dateParts = dateStr.split('.');
   const formattedDate = dateParts.length === 3 
-    ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` // DD.MM.YYYY -> YYYY-MM-DD
+    ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`
     : null;
 
   return {
@@ -122,12 +120,10 @@ const formatPrayerTimeFromAPI = (apiData, cityId) => {
     asr: apiData.asr,
     maghrib: apiData.maghrib,
     isha: apiData.isha,
-    qibla: null, // API'den doğrudan bu formatta veri gelmiyor
+    qibla: null,
     qiblaTime: apiData.qiblaTime,
-    gregorianDate: apiData.gregorianDateShort, // Eski format için
-    hijriDate: apiData.hijriDateShort,  // Eski format için
-    
-    // Yeni alanlar
+    gregorianDate: apiData.gregorianDateShort,
+    hijriDate: apiData.hijriDateShort,
     gregorianDateShort: apiData.gregorianDateShort,
     gregorianDateLong: apiData.gregorianDateLong,
     gregorianDateIso8601: apiData.gregorianDateLongIso8601,

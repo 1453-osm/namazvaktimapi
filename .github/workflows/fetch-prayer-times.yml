@@ -162,9 +162,9 @@ jobs:
     
     strategy:
       matrix:
-        chunk: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        chunk: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
       fail-fast: false  # Bir iş başarısız olsa bile diğerleri devam etsin
-      max-parallel: 10  # Eşzamanlı olarak çalışacak maksimum iş sayısı
+      max-parallel: 20  # Eşzamanlı olarak çalışacak maksimum iş sayısı
     
     steps:
       - name: Checkout repository
@@ -183,15 +183,14 @@ jobs:
         env:
           CHUNK_ID: ${{ matrix.chunk }}
         run: |
-          echo "Namaz vakitlerini çekme işlemi (parça ${{ matrix.chunk }}/10) başlatılıyor..."
+          echo "Namaz vakitlerini çekme işlemi (parça ${{ matrix.chunk }}/20) başlatılıyor..."
           echo "TURSO_DATABASE_URL: ${{ env.TURSO_DATABASE_URL != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
           echo "TURSO_AUTH_TOKEN: ${{ env.TURSO_AUTH_TOKEN != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
           echo "HTTP_PROXY: ${{ env.HTTP_PROXY != '' && 'TANIMLANMIŞ' || 'TANIMLANMAMIŞ' }}"
           echo "CHUNK_ID: ${{ matrix.chunk }}"
           
           # Paralel çalışma için gerekli parametreleri geçirerek script'i çalıştır
-          # TODO: Turso için fetchAllPrayerTimesForTurso.js scripti oluşturulmalı
-          NODE_OPTIONS="--max-old-space-size=4096" node src/scripts/turso/fetchAllPrayerTimesForTurso.js --chunk=${{ matrix.chunk }} --total-chunks=10
+          NODE_OPTIONS="--max-old-space-size=4096" node src/scripts/turso/fetchAllPrayerTimesForTurso.js --chunk=${{ matrix.chunk }} --total-chunks=20
         timeout-minutes: 120  # Her bir parça için 2 saat timeout (daha kısa sürecek)
 
   finalize:
@@ -226,7 +225,7 @@ jobs:
           echo "Yıllık namaz vakitleri işlemi tamamlandı." >> $GITHUB_STEP_SUMMARY
           PRAYER_TIMES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } }; check();")
           echo "Veritabanındaki toplam namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY
-          echo "Paralel veri çekme işlemi başarıyla tamamlandı (10 paralel görev)." >> $GITHUB_STEP_SUMMARY
+          echo "Paralel veri çekme işlemi başarıyla tamamlandı (20 paralel görev)." >> $GITHUB_STEP_SUMMARY
 
   handle-data-not-available:
     needs: prepare-data

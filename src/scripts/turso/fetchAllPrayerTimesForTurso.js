@@ -7,8 +7,7 @@ const parseArgs = () => {
   const args = process.argv.slice(2);
   const result = {
     chunk: 1,
-    totalChunks: 1,
-    year: new Date().getFullYear() + 1 // Varsayılan olarak gelecek yıl
+    totalChunks: 1
   };
 
   args.forEach(arg => {
@@ -16,8 +15,6 @@ const parseArgs = () => {
       result.chunk = parseInt(arg.split('=')[1], 10);
     } else if (arg.startsWith('--total-chunks=')) {
       result.totalChunks = parseInt(arg.split('=')[1], 10);
-    } else if (arg.startsWith('--year=')) {
-      result.year = parseInt(arg.split('=')[1], 10);
     }
   });
 
@@ -26,7 +23,7 @@ const parseArgs = () => {
 
 // Çalışma parametreleri
 const params = parseArgs();
-console.log(`Paralel çalışma parametreleri: Parça ${params.chunk}/${params.totalChunks}, Yıl: ${params.year}`);
+console.log(`Paralel çalışma parametreleri: Parça ${params.chunk}/${params.totalChunks}`);
 
 // Tarih formatını düzenleyen yardımcı fonksiyon - Çeşitli formatları YYYY-MM-DD'ye çevirir
 const formatDate = (dateStr) => {
@@ -246,9 +243,9 @@ const fetchAllPrayerTimes = async () => {
     await testConnection();
     
     // Çalışma parametreleri
-    const targetYear = params.year;
+    const currentYear = new Date().getFullYear();
     
-    console.log(`\n=== ${targetYear} YILI İÇİN TÜM DÜNYA NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ ===\n`);
+    console.log(`\n=== ${currentYear} YILI İÇİN TÜM DÜNYA NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ ===\n`);
     console.log(`Çalışma modu: Parça ${params.chunk}/${params.totalChunks}`);
     
     // Hangi şehirleri bu paralel iş işleyecek
@@ -269,7 +266,7 @@ const fetchAllPrayerTimes = async () => {
       if (priorityCitiesResult.rows.length > 0) {
         for (const city of priorityCitiesResult.rows) {
           try {
-            await fetchAndSavePrayerTimesForCity(city, targetYear);
+            await fetchAndSavePrayerTimesForCity(city, currentYear);
           } catch (error) {
             console.error(`${city.name} için işlem başarısız:`, error.message);
             // Hata olsa bile diğer şehirlerle devam et
@@ -298,7 +295,7 @@ const fetchAllPrayerTimes = async () => {
         
         for (const city of citiesChunk) {
           try {
-            await fetchAndSavePrayerTimesForCity(city, targetYear);
+            await fetchAndSavePrayerTimesForCity(city, currentYear);
           } catch (error) {
             console.error(`${city.name} için işlem başarısız:`, error.message);
             // Hata olsa bile diğer şehirlerle devam et
@@ -330,7 +327,7 @@ const fetchAllPrayerTimes = async () => {
         
         for (const city of citiesChunk) {
           try {
-            await fetchAndSavePrayerTimesForCity(city, targetYear);
+            await fetchAndSavePrayerTimesForCity(city, currentYear);
           } catch (error) {
             console.error(`${city.name} için işlem başarısız:`, error.message);
             // Hata olsa bile diğer şehirlerle devam et
