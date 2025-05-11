@@ -2,10 +2,14 @@ name: Planlanmış Namaz Vakti Güncellemesi
 
 on:
   workflow_dispatch: # Manuel tetikleme olanağı
+    inputs:
+      target_year:
+        description: 'İndirilecek namaz vakitleri yılı (boş bırakılırsa gelecek yıl kullanılır)'
+        required: false
+        type: string
   schedule:
-    # Her gün 12:25 UTC'de (GMT+00:00) çalıştır (Türkiye saati ile 15:25)
-    # 11 Mayıs filtrelemesi Node.js script içinde yapılacak
-    - cron: '25 12 * * *'
+    # 20 Kasım 00:00 UTC'de çalıştır
+    - cron: '0 0 20 11 *'
 
 jobs:
   check-update-date:
@@ -17,6 +21,7 @@ jobs:
     
     outputs:
       should_update: ${{ steps.check-date.outputs.should_update }}
+      target_year: ${{ steps.check-date.outputs.target_year }}
       
     steps:
       - name: Checkout repository
@@ -29,21 +34,26 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-optional
       
       - name: Check date
         id: check-date
         run: |
-          # Şu anki tarihin 11 Mayıs olup olmadığını kontrol et
-          TODAY_DATE=$(date +"%m-%d")
-          IS_MAY_11=$([ "$TODAY_DATE" == "05-11" ] && echo "true" || echo "false")
+          # 20 Kasım'da otomatik olarak çalıştığı için her zaman true döndür
+          echo "should_update=true" >> $GITHUB_OUTPUT
           
-          echo "Bugünün tarihi: $(date +'%Y-%m-%d %H:%M:%S UTC')"
-          echo "11 Mayıs mı? $IS_MAY_11"
-          
-          # GitHub Actions çıktısı olarak kaydet
-          echo "should_update=$IS_MAY_11" >> $GITHUB_OUTPUT
-          
+          # Hedef yılı belirle
+          if [ "${{ github.event.inputs.target_year }}" != "" ]; then
+            # Manuel tetiklemede hedef yıl belirtilmişse onu kullan
+            echo "target_year=${{ github.event.inputs.target_year }}" >> $GITHUB_OUTPUT
+            echo "Manuel başlatma, hedef yıl: ${{ github.event.inputs.target_year }}"
+          else
+            # Belirtilmemişse gelecek yılı kullan
+            NEXT_YEAR=$(date -d "next year" +%Y)
+            echo "target_year=${NEXT_YEAR}" >> $GITHUB_OUTPUT
+            echo "Otomatik güncelleme: 20 Kasım $(date +'%Y %H:%M:%S UTC'), hedef yıl: ${NEXT_YEAR}"
+          fi
+
   run-update-script:
     needs: check-update-date
     if: ${{ needs.check-update-date.outputs.should_update == 'true' || github.event_name == 'workflow_dispatch' }}
@@ -52,6 +62,7 @@ jobs:
       TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
       TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       HTTP_PROXY: ${{ secrets.HTTP_PROXY }}
+      TARGET_YEAR: ${{ needs.check-update-date.outputs.target_year }}
     
     steps:
       - name: Checkout repository
@@ -64,18 +75,20 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-optional
       
       - name: Run update checks
         run: |
-          echo "11 Mayıs namaz vakti güncelleme kontrolü başlatılıyor..."
+          echo "20 Kasım namaz vakti güncelleme kontrolü başlatılıyor..."
+          echo "Hedef yıl: ${{ env.TARGET_YEAR }}"
           node -e "
-          const { mayCheck, checkPendingUpdates, emergencyUpdate } = require('./src/scripts/schedulePrayerTimesUpdate');
+          const { novemberCheck, checkPendingUpdates, emergencyUpdate } = require('./src/scripts/schedulePrayerTimesUpdate');
           
           async function runChecks() {
             try {
-              console.log('11 Mayıs kontrolü yapılıyor...');
-              await mayCheck();
+              console.log('20 Kasım kontrolü yapılıyor...');
+              // Hedef yılı parametre olarak geçir
+              await novemberCheck(process.env.TARGET_YEAR);
               
               console.log('Bekleyen güncellemeler kontrol ediliyor...');
               await checkPendingUpdates();
@@ -96,8 +109,9 @@ jobs:
       
       - name: Create summary
         run: |
-          echo "## 11 Mayıs Namaz Vakti Güncelleme Kontrolü" >> $GITHUB_STEP_SUMMARY
+          echo "## 20 Kasım Namaz Vakti Güncelleme Kontrolü" >> $GITHUB_STEP_SUMMARY
           echo "Kontrol işlemi: $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "Hedef yıl: ${{ env.TARGET_YEAR }}" >> $GITHUB_STEP_SUMMARY
           
           # Güncellenmiş namaz vakitleri sayısını kontrol et  
           PRAYER_TIMES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } }; check();")
@@ -105,14 +119,14 @@ jobs:
           echo "Veritabanındaki toplam namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY
           
           # Güncellenmiş log kayıtlarını kontrol et
-          UPDATE_STATUS=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const year = new Date().getFullYear(); const result = await client.execute('SELECT status FROM update_logs WHERE update_type = \"yearly\" AND update_year = ' + year); if(result.rows.length > 0) { console.log(result.rows[0].status); } else { console.log('none'); } } catch(e) { console.log('error'); } }; check();")
+          UPDATE_STATUS=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const year = process.env.TARGET_YEAR || new Date().getFullYear(); const result = await client.execute('SELECT status FROM update_logs WHERE update_type = \"yearly\" AND update_year = ' + year); if(result.rows.length > 0) { console.log(result.rows[0].status); } else { console.log('none'); } } catch(e) { console.log('error'); } }; check();")
           
           echo "Bu yılın güncelleme durumu: ${UPDATE_STATUS}" >> $GITHUB_STEP_SUMMARY
 
   # Namaz vakitlerini paralel olarak çekmek için job
   fetch-prayer-times:
     needs: check-update-date
-    # Sadece 11 Mayıs'ta veya manuel tetiklendiğinde çalışacak
+    # Sadece 20 Kasım'da veya manuel tetiklendiğinde çalışacak
     if: ${{ needs.check-update-date.outputs.should_update == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     env:
@@ -122,9 +136,9 @@ jobs:
     
     strategy:
       matrix:
-        chunk: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        chunk: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
       fail-fast: false  # Bir iş başarısız olsa bile diğerleri devam etsin
-      max-parallel: 10  # Eşzamanlı olarak çalışacak maksimum iş sayısı
+      max-parallel: 20  # Eşzamanlı olarak çalışacak maksimum iş sayısı
     
     steps:
       - name: Checkout repository
@@ -137,12 +151,13 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-optional
       
       - name: Fetch prayer times (chunk ${{ matrix.chunk }})
         run: |
-          echo "Namaz vakitlerini çekme işlemi (parça ${{ matrix.chunk }}/10) başlatılıyor..."
-          node src/scripts/turso/fetchAllPrayerTimesForTurso.js --chunk=${{ matrix.chunk }} --total-chunks=10
+          echo "Namaz vakitlerini çekme işlemi (parça ${{ matrix.chunk }}/20) başlatılıyor..."
+          echo "Hedef yıl: ${{ needs.check-update-date.outputs.target_year }}"
+          node src/scripts/turso/fetchAllPrayerTimesForTurso.js --chunk=${{ matrix.chunk }} --total-chunks=20 --year=${{ needs.check-update-date.outputs.target_year }}
         timeout-minutes: 60
       
       - name: Verify prayer times data
@@ -151,5 +166,6 @@ jobs:
           PRAYER_TIMES_COUNT=$(node -e "const { client } = require('./src/config/turso'); async function check() { try { const result = await client.execute('SELECT COUNT(*) as count FROM prayer_times'); console.log(result.rows[0].count); } catch(e) { console.log('0'); } }; check();")
           echo "Namaz vakitleri sayısı: ${PRAYER_TIMES_COUNT}"
           
-          echo "## Namaz Vakitleri Güncelleme Özeti (Parça ${{ matrix.chunk }}/10)" >> $GITHUB_STEP_SUMMARY
-          echo "Veritabanındaki toplam namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY 
+          echo "## Namaz Vakitleri Güncelleme Özeti (Parça ${{ matrix.chunk }}/20)" >> $GITHUB_STEP_SUMMARY
+          echo "Veritabanındaki toplam namaz vakti sayısı: ${PRAYER_TIMES_COUNT}" >> $GITHUB_STEP_SUMMARY
+          echo "Hedef yıl: ${{ needs.check-update-date.outputs.target_year }}" >> $GITHUB_STEP_SUMMARY 

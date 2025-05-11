@@ -1,6 +1,16 @@
-const { fetchAndSavePrayerTimes } = require('./fetchPrayerTimes');
+/**
+ * Namaz vakitleri güncelleme çizelgesi
+ * Bu script, belirli zamanlarda namaz vakitlerini güncellemek için kullanılır.
+ * 
+ * Turso veritabanı kullanır.
+ */
+
+// Gerekli modülleri import et
 const diyanetApi = require('../utils/diyanetApi');
-const db = require('../config/db');
+const { client } = require('../config/turso');
+
+// diyanetService modülünü import et
+const diyanetService = require('../services/diyanetService');
 
 // Diyanet API'den destek verilen tarih aralığını kontrol et
 async function checkSupportedDateRange() {
@@ -61,32 +71,59 @@ async function checkNextYearData() {
   }
 }
 
+// Namaz vakitlerini çek ve kaydet
+async function fetchAllPrayerTimes(targetYear) {
+  try {
+    console.log('Tüm namaz vakitlerini çekme işlemi başlatılıyor...');
+    
+    // Turso modülünü doğrudan import et
+    const tursoModule = require('./turso/fetchAllPrayerTimesForTurso');
+    
+    // Fonksiyonu çağır
+    const result = await tursoModule.fetchAllPrayerTimes();
+    
+    console.log('Namaz vakitleri çekme işlemi tamamlandı.');
+    return result;
+  } catch (error) {
+    console.error('Namaz vakitleri çekme işlemi sırasında hata:', error);
+    return false;
+  }
+}
+
 // Yıllık tam güncelleme
-async function yearlyFullUpdate() {
+async function yearlyFullUpdate(targetYear) {
   try {
     console.log('Yıllık tam güncelleme başlatılıyor...');
     
-    // Gelecek yıl verisi kontrol et
-    const hasNextYearData = await checkNextYearData();
+    // Hedef yıl belirtilmemişse gelecek yılı kullan
+    const updateYear = targetYear ? parseInt(targetYear) : new Date().getFullYear() + 1;
+    console.log(`Hedef yıl: ${updateYear}`);
+    
+    // Gelecek yıl verisi kontrol et (hedef yıl gelecek yılsa)
+    let hasNextYearData = true;
+    if (updateYear > new Date().getFullYear()) {
+      hasNextYearData = await checkNextYearData();
+    }
     
     if (hasNextYearData) {
-      console.log('Gelecek yıl verisi mevcut, tam güncelleme yapılıyor...');
-      await fetchAndSavePrayerTimes();
+      console.log(`${updateYear} yılı verisi mevcut, tam güncelleme yapılıyor...`);
+      await fetchAllPrayerTimes(updateYear);
       
       // İşlemi bu yıl için tamamlandı olarak işaretle
       const now = new Date();
-      const year = now.getFullYear();
-      await db.query(`
-        INSERT INTO update_logs (update_type, update_year, status, updated_at)
-        VALUES ('yearly', $1, 'completed', NOW())
-        ON CONFLICT (update_type, update_year) 
-        DO UPDATE SET status = 'completed', updated_at = NOW()
-      `, [year]);
+      const currentYear = now.getFullYear();
+      await client.execute({
+        sql: `
+          INSERT OR REPLACE INTO update_logs (update_type, update_year, status, updated_at)
+          VALUES (?, ?, ?, datetime('now'))
+        `,
+        args: ['yearly', currentYear, 'completed']
+      });
       
-      console.log(`${year} yılı için yıllık güncelleme tamamlandı ve kayıt edildi.`);
+      console.log(`${currentYear} yılı için yıllık güncelleme tamamlandı ve kayıt edildi.`);
       return true;
     } else {
-      console.log('Gelecek yıl verisi henüz mevcut değil, güncelleme ertelendi.');
+      console.log(`${updateYear} yılı verisi henüz mevcut değil, güncelleme ertelendi.`);
       return false;
     }
   } catch (error) {
@@ -101,12 +138,15 @@ async function emergencyUpdate() {
     console.log('Acil durum güncelleme kontrolü yapılıyor...');
     
     // Son veritabanındaki en son tarihi al
-    const latestDateResult = await db.query('SELECT MAX(date) as latest_date FROM prayer_times');
+    const latestDateResult = await client.execute({
+      sql: 'SELECT MAX(prayer_date) as latest_date FROM prayer_times'
+    });
+    
     const latestDate = latestDateResult.rows[0].latest_date;
     
     if (!latestDate) {
       console.log('Veritabanında hiç veri yok, tam güncelleme yapılacak.');
-      await fetchAndSavePrayerTimes();
+      await fetchAllPrayerTimes();
       return true;
     }
     
@@ -127,7 +167,7 @@ async function emergencyUpdate() {
     // Eğer 30 günden az kaldıysa, acil güncelleme yap
     if (daysRemaining < 30) {
       console.log('30 günden az veri kaldı, acil güncelleme yapılıyor...');
-      await fetchAndSavePrayerTimes();
+      await fetchAllPrayerTimes();
       return true;
     }
     
@@ -142,27 +182,28 @@ async function emergencyUpdate() {
 async function setupUpdateLogs() {
   try {
     // Tablo var mı kontrol et
-    const tableExists = await db.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'update_logs'
-      );
-    `);
+    const tableExists = await client.execute({
+      sql: `
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name='update_logs'
+      `
+    });
     
-    if (!tableExists.rows[0].exists) {
+    if (tableExists.rows.length === 0) {
       console.log('update_logs tablosu oluşturuluyor...');
-      await db.query(`
-        CREATE TABLE update_logs (
-          id SERIAL PRIMARY KEY,
-          update_type VARCHAR(50) NOT NULL,
-          update_year INTEGER NOT NULL,
-          status VARCHAR(50) NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE(update_type, update_year)
-        );
-      `);
+      await client.execute({
+        sql: `
+          CREATE TABLE IF NOT EXISTS update_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            update_type TEXT NOT NULL,
+            update_year INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(update_type, update_year)
+          )
+        `
+      });
       console.log('update_logs tablosu oluşturuldu.');
     }
   } catch (error) {
@@ -178,10 +219,13 @@ async function checkYearlyUpdateStatus() {
     const now = new Date();
     const currentYear = now.getFullYear();
     
-    const result = await db.query(`
-      SELECT * FROM update_logs 
-      WHERE update_type = 'yearly' AND update_year = $1
-    `, [currentYear]);
+    const result = await client.execute({
+      sql: `
+        SELECT * FROM update_logs 
+        WHERE update_type = ? AND update_year = ?
+      `,
+      args: ['yearly', currentYear]
+    });
     
     if (result.rows.length === 0) {
       console.log(`${currentYear} yılı için henüz yıllık güncelleme yapılmamış.`);
@@ -198,35 +242,45 @@ async function checkYearlyUpdateStatus() {
   }
 }
 
-// 11 Mayıs kontrol işlemi
-async function mayCheck() {
+// 20 Kasım kontrolü işlemi
+async function novemberCheck(targetYear) {
   const now = new Date();
   
-  // 11 Mayıs saat 09:00 GMT+00:00 kontrolü
-  const isMay11 = now.getMonth() === 4 && now.getDate() === 11; // Mayıs 0-indexed (4)
+  // 20 Kasım saat 09:00 GMT+00:00 kontrolü
+  const isNov20 = now.getMonth() === 10 && now.getDate() === 20; // Kasım 0-indexed (10)
   const isCorrectTime = now.getUTCHours() === 9 && now.getUTCMinutes() === 0;
   
-  if (isMay11 && isCorrectTime) {
-    console.log('Bugün 11 Mayıs saat 09:00 GMT+00:00, gelecek yıl verisini kontrol ediyoruz...');
+  // GitHub Actions için her zaman çalışmasını sağla
+  const isGithubActions = process.env.GITHUB_ACTIONS === 'true';
+  
+  // Hedef yıl parametresi varsa veya doğru zamanda çalışıyorsa işlemi yap
+  if (isGithubActions || (isNov20 && isCorrectTime) || targetYear) {
+    console.log('20 Kasım saat 09:00 GMT+00:00 kontrolü veya GitHub Actions çalışması başlatılıyor...');
+    
+    // Hedef yıl belirtilmişse onu kullan
+    const updateYear = targetYear ? parseInt(targetYear) : new Date().getFullYear() + 1;
+    console.log(`Hedef yıl: ${updateYear}`);
     
     // Bu yıl için yıllık güncelleme yapılmış mı kontrol et
     const isUpdated = await checkYearlyUpdateStatus();
     
-    if (!isUpdated) {
+    // Hedef yıl belirtilmişse veya henüz güncelleme yapılmamışsa
+    if (targetYear || !isUpdated) {
       // Gelecek yıl verisi kontrol edip, varsa indir
-      const success = await yearlyFullUpdate();
+      const success = await yearlyFullUpdate(updateYear);
       
-      if (!success) {
+      if (!success && !targetYear) {
         console.log('Gelecek yıl verisi henüz mevcut değil, 3 günde bir kontrol edilecek.');
         
         // Takip durumunu kaydet
         const currentYear = now.getFullYear();
-        await db.query(`
-          INSERT INTO update_logs (update_type, update_year, status, updated_at)
-          VALUES ('yearly', $1, 'pending', NOW())
-          ON CONFLICT (update_type, update_year) 
-          DO UPDATE SET status = 'pending', updated_at = NOW()
-        `, [currentYear]);
+        await client.execute({
+          sql: `
+            INSERT OR REPLACE INTO update_logs (update_type, update_year, status, updated_at)
+            VALUES (?, ?, ?, datetime('now'))
+          `,
+          args: ['yearly', currentYear, 'pending']
+        });
       }
     } else {
       console.log('Bu yıl için zaten yıllık güncelleme yapılmış.');
@@ -243,10 +297,13 @@ async function checkPendingUpdates() {
     const currentYear = now.getFullYear();
     
     // Bekleyen güncelleme var mı kontrol et
-    const result = await db.query(`
-      SELECT * FROM update_logs 
-      WHERE update_type = 'yearly' AND update_year = $1 AND status = 'pending'
-    `, [currentYear]);
+    const result = await client.execute({
+      sql: `
+        SELECT * FROM update_logs 
+        WHERE update_type = ? AND update_year = ? AND status = ?
+      `,
+      args: ['yearly', currentYear, 'pending']
+    });
     
     if (result.rows.length === 0) {
       return; // Bekleyen güncelleme yok
@@ -264,11 +321,14 @@ async function checkPendingUpdates() {
       
       if (!success) {
         // Durum hala beklemede, sadece son kontrol tarihini güncelle
-        await db.query(`
-          UPDATE update_logs 
-          SET updated_at = NOW() 
-          WHERE update_type = 'yearly' AND update_year = $1 AND status = 'pending'
-        `, [currentYear]);
+        await client.execute({
+          sql: `
+            UPDATE update_logs 
+            SET updated_at = datetime('now')
+            WHERE update_type = ? AND update_year = ? AND status = ?
+          `,
+          args: ['yearly', currentYear, 'pending']
+        });
         
         console.log('Gelecek yıl verisi hala mevcut değil, 3 gün sonra tekrar kontrol edilecek.');
       }
@@ -282,17 +342,17 @@ async function checkPendingUpdates() {
 function scheduleUpdates() {
   console.log('Namaz vakitleri güncelleme çizelgesi başlatılıyor...');
   
-  // 11 Mayıs 09:00 GMT+00:00 tarihinde çalışacak işlevi ayarlayalım
+  // 20 Kasım 09:00 GMT+00:00 tarihinde çalışacak işlevi ayarlayalım
   const scheduleSpecificDateCheck = () => {
     const now = new Date();
     console.log(`Şu anki zaman: ${now.toISOString()}`);
     
-    // Bir sonraki 11 Mayıs 09:00 GMT+00:00 tarihini hesaplayalım
-    let targetDate = new Date(Date.UTC(now.getFullYear(), 4, 11, 9, 0, 0)); // Mayıs 0-indexed (4)
+    // Bir sonraki 20 Kasım 09:00 GMT+00:00 tarihini hesaplayalım
+    let targetDate = new Date(Date.UTC(now.getFullYear(), 10, 20, 9, 0, 0)); // Kasım 0-indexed (10)
     
-    // Eğer bu yılın 11 Mayıs tarihi geçtiyse, gelecek yılı ayarlayalım
+    // Eğer bu yılın 20 Kasım tarihi geçtiyse, gelecek yılı ayarlayalım
     if (now > targetDate) {
-      targetDate = new Date(Date.UTC(now.getFullYear() + 1, 4, 11, 9, 0, 0));
+      targetDate = new Date(Date.UTC(now.getFullYear() + 1, 10, 20, 9, 0, 0));
     }
     
     // Hedef tarihe ne kadar kaldığını hesaplayalım
@@ -303,10 +363,10 @@ function scheduleUpdates() {
     
     // Hedef tarihte çalışacak işlevi planlayalım
     setTimeout(() => {
-      console.log('11 Mayıs 09:00 GMT+00:00 kontrolü başlatılıyor...');
+      console.log('20 Kasım 09:00 GMT+00:00 kontrolü başlatılıyor...');
       
       // Kontrolleri çalıştır
-      mayCheck();
+      novemberCheck();
       checkPendingUpdates();
       emergencyUpdate();
       
@@ -327,7 +387,7 @@ if (require.main === module) {
 } else {
   module.exports = { 
     scheduleUpdates, 
-    mayCheck, 
+    novemberCheck, 
     checkPendingUpdates,
     yearlyFullUpdate, 
     checkNextYearData,

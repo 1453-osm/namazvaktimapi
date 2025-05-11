@@ -7,7 +7,8 @@ const parseArgs = () => {
   const args = process.argv.slice(2);
   const result = {
     chunk: 1,
-    totalChunks: 1
+    totalChunks: 1,
+    year: new Date().getFullYear() + 1 // Varsayılan olarak gelecek yıl
   };
 
   args.forEach(arg => {
@@ -15,6 +16,8 @@ const parseArgs = () => {
       result.chunk = parseInt(arg.split('=')[1], 10);
     } else if (arg.startsWith('--total-chunks=')) {
       result.totalChunks = parseInt(arg.split('=')[1], 10);
+    } else if (arg.startsWith('--year=')) {
+      result.year = parseInt(arg.split('=')[1], 10);
     }
   });
 
@@ -23,7 +26,7 @@ const parseArgs = () => {
 
 // Çalışma parametreleri
 const params = parseArgs();
-console.log(`Paralel çalışma parametreleri: Parça ${params.chunk}/${params.totalChunks}`);
+console.log(`Paralel çalışma parametreleri: Parça ${params.chunk}/${params.totalChunks}, Yıl: ${params.year}`);
 
 // Tarih formatını düzenleyen yardımcı fonksiyon - Çeşitli formatları YYYY-MM-DD'ye çevirir
 const formatDate = (dateStr) => {
@@ -210,8 +213,8 @@ const fetchAndSavePrayerTimesForCity = async (city, year) => {
     
     console.log(`\n[${city.name}] için işlem tamamlandı. Toplam ${totalDays} günlük veri kaydedildi.`);
     
-    // İstekler arasında kısa bir bekletme yap (3 saniye)
-    await sleep(3000);
+    // İstekler arasında kısa bir bekletme yap (200 milisaniye - saniyede 5 istek)
+    await sleep(200);
     
     return totalDays;
   } catch (error) {
@@ -243,9 +246,9 @@ const fetchAllPrayerTimes = async () => {
     await testConnection();
     
     // Çalışma parametreleri
-    const currentYear = new Date().getFullYear();
+    const targetYear = params.year;
     
-    console.log(`\n=== ${currentYear} YILI İÇİN TÜM DÜNYA NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ ===\n`);
+    console.log(`\n=== ${targetYear} YILI İÇİN TÜM DÜNYA NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ ===\n`);
     console.log(`Çalışma modu: Parça ${params.chunk}/${params.totalChunks}`);
     
     // Hangi şehirleri bu paralel iş işleyecek
@@ -266,7 +269,7 @@ const fetchAllPrayerTimes = async () => {
       if (priorityCitiesResult.rows.length > 0) {
         for (const city of priorityCitiesResult.rows) {
           try {
-            await fetchAndSavePrayerTimesForCity(city, currentYear);
+            await fetchAndSavePrayerTimesForCity(city, targetYear);
           } catch (error) {
             console.error(`${city.name} için işlem başarısız:`, error.message);
             // Hata olsa bile diğer şehirlerle devam et
@@ -276,8 +279,8 @@ const fetchAllPrayerTimes = async () => {
       }
     }
     
-    // Sonra diğer Türkiye şehirlerini işle - Parça 1-3 için
-    if (params.chunk <= 3) {
+    // Sonra diğer Türkiye şehirlerini işle - Parça 1-7 için
+    if (params.chunk <= 7) {
       console.log('\n--- DİĞER TÜRKİYE ŞEHİRLERİ ---');
       const turkishCitiesResult = await client.execute(`
         SELECT c.id, c.name, c.state_id, s.name as state_name, co.name as country_name 
@@ -289,13 +292,13 @@ const fetchAllPrayerTimes = async () => {
       `);
       
       if (turkishCitiesResult.rows.length > 0) {
-        // Parçalara böl (ilk 3 parça için)
-        const startChunk = Math.min(params.chunk, 3);
-        const citiesChunk = splitArrayIntoChunks(turkishCitiesResult.rows, startChunk, 3);
+        // Parçalara böl (ilk 7 parça için)
+        const startChunk = Math.min(params.chunk, 7);
+        const citiesChunk = splitArrayIntoChunks(turkishCitiesResult.rows, startChunk, 7);
         
         for (const city of citiesChunk) {
           try {
-            await fetchAndSavePrayerTimesForCity(city, currentYear);
+            await fetchAndSavePrayerTimesForCity(city, targetYear);
           } catch (error) {
             console.error(`${city.name} için işlem başarısız:`, error.message);
             // Hata olsa bile diğer şehirlerle devam et
@@ -305,8 +308,8 @@ const fetchAllPrayerTimes = async () => {
       }
     }
     
-    // Son olarak diğer dünya ülkelerini işle - Parça 4-10 için
-    if (params.chunk >= 4) {
+    // Son olarak diğer dünya ülkelerini işle - Parça 8-20 için
+    if (params.chunk >= 8) {
       console.log('\n--- DİĞER DÜNYA ÜLKELERİ ---');
       const worldCitiesResult = await client.execute(`
         SELECT c.id, c.name, c.state_id, s.name as state_name, co.name as country_name 
@@ -319,15 +322,15 @@ const fetchAllPrayerTimes = async () => {
       `);
       
       if (worldCitiesResult.rows.length > 0) {
-        // Parçalara böl (kalan 7 parça için)
-        const chunkIndex = params.chunk - 3; // 4. parça için 1, 5. parça için 2, ...
-        const citiesChunk = splitArrayIntoChunks(worldCitiesResult.rows, chunkIndex, 7);
+        // Parçalara böl (kalan 13 parça için)
+        const chunkIndex = params.chunk - 7; // 8. parça için 1, 9. parça için 2, ...
+        const citiesChunk = splitArrayIntoChunks(worldCitiesResult.rows, chunkIndex, 13);
         
         console.log(`Parça ${params.chunk}: ${citiesChunk.length} şehir işlenecek`);
         
         for (const city of citiesChunk) {
           try {
-            await fetchAndSavePrayerTimesForCity(city, currentYear);
+            await fetchAndSavePrayerTimesForCity(city, targetYear);
           } catch (error) {
             console.error(`${city.name} için işlem başarısız:`, error.message);
             // Hata olsa bile diğer şehirlerle devam et
@@ -338,15 +341,22 @@ const fetchAllPrayerTimes = async () => {
     }
     
     console.log(`\n=== PARÇA ${params.chunk}/${params.totalChunks} İÇİN NAMAZ VAKİTLERİ GÜNCELLEME İŞLEMİ TAMAMLANDI ===\n`);
+    return true;
   } catch (error) {
     console.error('Toplu veri çekme işlemi sırasında hata oluştu:', error);
+    return false;
   }
 };
 
-// Uygulamayı çalıştır
-console.log(`Namaz vakitleri güncelleme işlemi başlatılıyor... (Parça ${params.chunk}/${params.totalChunks})`);
-fetchAllPrayerTimes().then(() => {
-  console.log(`Parça ${params.chunk}/${params.totalChunks} işlemi tamamlandı.`);
-}).catch(err => {
-  console.error('İşlem hatası:', err);
-}); 
+// Eğer doğrudan çalıştırılıyorsa
+if (require.main === module) {
+  console.log(`Namaz vakitleri güncelleme işlemi başlatılıyor... (Parça ${params.chunk}/${params.totalChunks})`);
+  fetchAllPrayerTimes().then(() => {
+    console.log(`Parça ${params.chunk}/${params.totalChunks} işlemi tamamlandı.`);
+  }).catch(err => {
+    console.error('İşlem hatası:', err);
+  });
+} else {
+  // Modül olarak kullanılıyorsa
+  module.exports = { fetchAllPrayerTimes };
+} 
