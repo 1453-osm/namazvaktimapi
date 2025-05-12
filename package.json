@@ -7,11 +7,14 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "setup-turso": "node src/config/setupTursoDb.js",
+    "update-daily-content-schema": "node src/config/updateDailyContentSchema.js",
     "fetch-countries": "node src/scripts/turso/fetchCountriesForTurso.js",
     "fetch-states": "node src/scripts/turso/fetchStatesForTurso.js",
     "fetch-cities": "node src/scripts/turso/fetchCitiesForTurso.js",
     "fetch-prayer-times": "node src/scripts/turso/fetchAllPrayerTimesForTurso.js",
+    "fetch-daily-content": "node src/scripts/fetchDailyContentForTurso.js",
     "schedule-updates": "node src/scripts/schedulePrayerTimesUpdate.js",
+    "schedule-daily-content": "node src/scripts/scheduleDailyContentUpdate.js",
     "schedule-cleanup": "node src/scripts/cleanupOldPrayerTimes.js"
   },
   "keywords": [

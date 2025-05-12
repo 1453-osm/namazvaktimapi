@@ -67,9 +67,9 @@ CREATE TABLE IF NOT EXISTS daily_contents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   content_date DATE NOT NULL,
   content_type TEXT NOT NULL, -- 'VERSE', 'HADITH', 'PRAYER' gibi
-  title TEXT,
   content TEXT NOT NULL,
   source TEXT,
+  day_of_year INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (content_date, content_type)
