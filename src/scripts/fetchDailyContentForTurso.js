@@ -25,6 +25,9 @@ async function fetchAndSaveDailyContent() {
         // Veritabanına kaydet
         await saveDailyContentToDb(dailyContent, today);
         
+        // Bir haftadan eski içerikleri temizle
+        await cleanupOldDailyContents();
+        
         console.log('İşlem başarıyla tamamlandı.');
     } catch (error) {
         console.error('Günlük içerik çekme ve kaydetme hatası:', error.message);
@@ -122,6 +125,32 @@ async function saveContentItem(contentItem, contentType, date) {
     } catch (error) {
         console.error(`${contentType} içeriği kaydedilirken hata:`, error.message);
         throw error;
+    }
+}
+
+/**
+ * Bir haftadan daha eski günlük içerikleri temizler
+ */
+async function cleanupOldDailyContents() {
+    try {
+        console.log('Eski günlük içerikler temizleniyor...');
+        
+        // Bir hafta öncesinin tarihini hesapla
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const oneWeekAgoStr = oneWeekAgo.toISOString().split('T')[0];
+        
+        // Bir haftadan eski içerikleri sil
+        const result = await client.execute({
+            sql: 'DELETE FROM daily_contents WHERE content_date < ?',
+            args: [oneWeekAgoStr]
+        });
+        
+        console.log(`${result.rowsAffected} adet eski günlük içerik silindi.`);
+    } catch (error) {
+        console.error('Eski günlük içerikler temizlenirken hata:', error.message);
+        // Ana işlemin başarısız olmaması için hatayı yukarı fırlatmıyoruz
+        // throw error;
     }
 }
 
