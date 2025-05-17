@@ -37,10 +37,34 @@ app.get('/', (req, res) => {
 });
 
 // Sunucuyu başlat
-app.listen(PORT, () => {
-  console.log(`Server ${PORT} portunda çalışıyor`);
+const server = app.listen(PORT, () => {
+  console.log(`Server başarıyla başlatıldı! 🚀`);
+  console.log(`PORT: ${PORT}`);
+  console.log(`Ortam: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`URL: http://localhost:${PORT}`);
   
   // Zamanlanmış görevleri başlat
   scheduleMonthlyCleanup();
   console.log('Aylık temizleme görevi zamanlandı');
+});
+
+// Hata yakalama
+server.on('error', (error) => {
+  console.error('Sunucu başlatma hatası:', error.message);
+  
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} zaten kullanımda! Farklı bir port seçin.`);
+  }
+  
+  // Kritik hatada uygulamayı sonlandır
+  process.exit(1);
+});
+
+// Sinyalleri yakala
+process.on('SIGTERM', () => {
+  console.log('SIGTERM sinyali alındı, sunucu kapatılıyor...');
+  server.close(() => {
+    console.log('Sunucu kapatıldı');
+    process.exit(0);
+  });
 }); 
