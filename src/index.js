@@ -1,21 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
 
-// Routes - Sadece countries route'unu etkinleştiriyoruz
-// const prayerTimeRoutes = require('./routes/prayerTimes');
-const countryRoutes = require('./routes/countries');
-// const stateRoutes = require('./routes/states');
-// const cityRoutes = require('./routes/cities');
-
-// Scripts - Şimdilik devre dışı bırakıyoruz
-// const { scheduleMonthlyCleanup } = require('./scripts/cleanupOldPrayerTimes');
-
-// Veritabanı bağlantısını ekleyelim
-const { testConnection } = require('./config/turso');
-
-// Config
-dotenv.config({ path: process.env.NODE_ENV === 'production' ? null : '.env', debug: process.env.DEBUG === 'true', optional: true });
+// Express uygulamasını oluştur
 const app = express();
 const PORT = process.env.PORT || 8080;
 
@@ -23,8 +9,6 @@ const PORT = process.env.PORT || 8080;
 console.log('=== BAŞLATILIYOR ===');
 console.log('PORT:', PORT);
 console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('TURSO_DATABASE_URL:', process.env.TURSO_DATABASE_URL ? 'Tanımlı (gizli)' : 'Tanımlı değil');
-console.log('TURSO_AUTH_TOKEN:', process.env.TURSO_AUTH_TOKEN ? 'Tanımlı (gizli)' : 'Tanımlı değil');
 console.log('Ortam değişkenleri:', Object.keys(process.env).join(', '));
 
 // Middlewares
@@ -32,18 +16,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Route Middlewares - Sadece countries route'unu etkinleştiriyoruz
-// app.use('/api/prayer-times', prayerTimeRoutes);
-app.use('/api/countries', countryRoutes);
-// app.use('/api/states', stateRoutes);
-// app.use('/api/cities', cityRoutes);
-
-// Sağlık kontrolü
+// Ana sayfa
 app.get('/', (req, res) => {
   console.log('Ana sayfa isteği alındı');
   res.json({ 
     status: 'success', 
-    message: 'Namaz Vakti API çalışıyor - Sadece Countries Route\'u',
+    message: 'Namaz Vakti API çalışıyor - Minimal Versiyon',
     env: process.env.NODE_ENV || 'development',
     time: new Date().toISOString()
   });
@@ -59,24 +37,65 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Veritabanı bağlantı testi rotası
-app.get('/api/db-test', async (req, res) => {
-  console.log('Veritabanı bağlantı testi isteği alındı');
-  try {
-    const isConnected = await testConnection();
-    res.json({
-      status: isConnected ? 'success' : 'error',
-      message: isConnected ? 'Veritabanı bağlantısı başarılı' : 'Veritabanı bağlantısı başarısız',
-      time: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Veritabanı bağlantı testi hatası:', error.message);
-    res.status(500).json({
-      status: 'error',
-      message: 'Veritabanı bağlantı testi başarısız: ' + error.message,
-      time: new Date().toISOString()
-    });
-  }
+// Mockup dummmy API endpoints
+app.get('/api/countries', (req, res) => {
+  console.log('Countries API isteği alındı');
+  res.json({
+    status: 'success',
+    message: 'Mock ülke listesi',
+    data: [
+      { id: 1, name: 'Türkiye' },
+      { id: 2, name: 'Almanya' },
+      { id: 3, name: 'İngiltere' }
+    ]
+  });
+});
+
+app.get('/api/states', (req, res) => {
+  console.log('States API isteği alındı');
+  res.json({
+    status: 'success',
+    message: 'Mock şehir listesi',
+    data: [
+      { id: 1, country_id: 1, name: 'İstanbul' },
+      { id: 2, country_id: 1, name: 'Ankara' },
+      { id: 3, country_id: 1, name: 'İzmir' }
+    ]
+  });
+});
+
+app.get('/api/cities', (req, res) => {
+  console.log('Cities API isteği alındı');
+  res.json({
+    status: 'success',
+    message: 'Mock ilçe listesi',
+    data: [
+      { id: 1, state_id: 1, name: 'Kadıköy' },
+      { id: 2, state_id: 1, name: 'Üsküdar' },
+      { id: 3, state_id: 1, name: 'Beşiktaş' }
+    ]
+  });
+});
+
+app.get('/api/prayer-times', (req, res) => {
+  console.log('Prayer Times API isteği alındı');
+  const today = new Date();
+  res.json({
+    status: 'success',
+    message: 'Mock namaz vakitleri',
+    data: [
+      {
+        date: today.toISOString().split('T')[0],
+        city_id: 1,
+        imsak: '05:30',
+        gunes: '07:00',
+        ogle: '12:30',
+        ikindi: '15:45',
+        aksam: '18:30',
+        yatsi: '20:00'
+      }
+    ]
+  });
 });
 
 // Hata işleyici
@@ -91,19 +110,6 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`PORT: ${PORT}`);
   console.log(`Ortam: ${process.env.NODE_ENV || 'development'}`);
   console.log(`URL: http://0.0.0.0:${PORT}`);
-  
-  // Veritabanı bağlantısını test et
-  testConnection()
-    .then(isConnected => {
-      console.log(`Veritabanı bağlantısı: ${isConnected ? 'Başarılı' : 'Başarısız'}`);
-    })
-    .catch(error => {
-      console.error('Veritabanı bağlantı testi hatası:', error.message);
-    });
-  
-  // Zamanlanmış görevleri başlat - Şimdilik devre dışı bırakıyoruz
-  // scheduleMonthlyCleanup();
-  // console.log('Aylık temizleme görevi zamanlandı');
 });
 
 // Hata yakalama
