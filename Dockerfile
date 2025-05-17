@@ -5,6 +5,9 @@ WORKDIR /app
 # Paket dosyalarını kopyala
 COPY package*.json ./
 
+# Debugging araçları ekle
+RUN apk add --no-cache curl wget procps
+
 # Bağımlılıkları yükle (üretim için)
 RUN npm ci --only=production
 
@@ -15,6 +18,7 @@ COPY src/ ./src/
 # Ortam değişkenlerini ayarla
 ENV PORT=8080
 ENV NODE_ENV=production
+ENV DEBUG=true
 ENV TURSO_DATABASE_URL="from-secret"
 ENV TURSO_AUTH_TOKEN="from-secret"
 
@@ -25,4 +29,4 @@ ENV TURSO_AUTH_TOKEN="from-secret"
 EXPOSE 8080
 
 # Uygulamayı başlat
-CMD ["node", "src/index.js"] 
+CMD ["node", "--trace-warnings", "src/index.js"] 

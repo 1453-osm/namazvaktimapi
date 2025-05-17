@@ -12,7 +12,7 @@ const cityRoutes = require('./routes/cities');
 const { scheduleMonthlyCleanup } = require('./scripts/cleanupOldPrayerTimes');
 
 // Config
-dotenv.config();
+dotenv.config({ path: process.env.NODE_ENV === 'production' ? null : '.env', debug: process.env.DEBUG === 'true', optional: true });
 const app = express();
 const PORT = process.env.PORT || 3000;
 
