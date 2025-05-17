@@ -2,11 +2,11 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
-// Routes
-const prayerTimeRoutes = require('./routes/prayerTimes');
+// Routes - Sadece countries route'unu etkinleştiriyoruz
+// const prayerTimeRoutes = require('./routes/prayerTimes');
 const countryRoutes = require('./routes/countries');
-const stateRoutes = require('./routes/states');
-const cityRoutes = require('./routes/cities');
+// const stateRoutes = require('./routes/states');
+// const cityRoutes = require('./routes/cities');
 
 // Scripts - Şimdilik devre dışı bırakıyoruz
 // const { scheduleMonthlyCleanup } = require('./scripts/cleanupOldPrayerTimes');
@@ -32,18 +32,18 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Route Middlewares
-app.use('/api/prayer-times', prayerTimeRoutes);
+// Route Middlewares - Sadece countries route'unu etkinleştiriyoruz
+// app.use('/api/prayer-times', prayerTimeRoutes);
 app.use('/api/countries', countryRoutes);
-app.use('/api/states', stateRoutes);
-app.use('/api/cities', cityRoutes);
+// app.use('/api/states', stateRoutes);
+// app.use('/api/cities', cityRoutes);
 
 // Sağlık kontrolü
 app.get('/', (req, res) => {
   console.log('Ana sayfa isteği alındı');
   res.json({ 
     status: 'success', 
-    message: 'Namaz Vakti API çalışıyor - Route\'lar Eklendi',
+    message: 'Namaz Vakti API çalışıyor - Sadece Countries Route\'u',
     env: process.env.NODE_ENV || 'development',
     time: new Date().toISOString()
   });
