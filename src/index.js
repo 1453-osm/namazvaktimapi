@@ -37,11 +37,11 @@ app.get('/', (req, res) => {
 });
 
 // Sunucuyu başlat
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server başarıyla başlatıldı! 🚀`);
   console.log(`PORT: ${PORT}`);
   console.log(`Ortam: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`URL: http://localhost:${PORT}`);
+  console.log(`URL: http://0.0.0.0:${PORT}`);
   
   // Zamanlanmış görevleri başlat
   scheduleMonthlyCleanup();
