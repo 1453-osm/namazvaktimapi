@@ -67,9 +67,21 @@ Turso veritabanı kimlik bilgilerini güvenli bir şekilde saklamak için:
 4. "Rol ekle" butonuna tıklayın
 5. Aşağıdaki rolleri ekleyin:
    - Artifact Registry Administrator
-   - Service Account User
+   - Service Account User (ÖNEMLİ: Bu rol Cloud Run'ın compute servis hesabını kullanabilmesi için gereklidir)
    - Service Usage Admin
 6. "Kaydet" butonuna tıklayın
+
+### Compute Servis Hesabına Secret Erişimi Ekleme
+
+Cloud Run'da çalışan uygulamanın Secret Manager'daki gizli değerlere erişebilmesi için:
+
+1. Cloud Console'da "IAM & Admin" > "IAM" bölümüne gidin
+2. "EKLE" butonuna tıklayın
+3. "Yeni sorumlu" alanına şunu girin: `{PROJECT_ID}-compute@developer.gserviceaccount.com`
+4. "Rol seç" alanından "Secret Manager Secret Accessor" rolünü seçin
+5. "Kaydet" butonuna tıklayın
+
+Bu adım, Cloud Run'da çalışan uygulamanın Secret Manager'daki gizli değerlere erişebilmesini sağlar.
 
 ## 5. GitHub Repository Ayarları
 

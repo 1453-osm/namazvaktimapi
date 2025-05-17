@@ -62,7 +62,6 @@ jobs:
             --max-instances=2 \
             --concurrency=80 \
             --timeout=300s \
-            --service-account=$PROJECT_ID-compute@developer.gserviceaccount.com \
             --verbosity=debug
   
       - name: Show deployed URL
