@@ -49,12 +49,27 @@ Turso veritabanı kimlik bilgilerini güvenli bir şekilde saklamak için:
    - Storage Admin
    - Cloud Build Editor
    - Secret Manager Secret Accessor
+   - Artifact Registry Administrator
+   - Service Account User
+   - Service Usage Admin
 6. "Continue" ve ardından "Done" butonuna tıklayın
 7. Oluşturulan servis hesabını listeden bulun ve tıklayın
 8. "Keys" sekmesine gidin
 9. "Add Key" > "Create new key" seçeneğini tıklayın
 10. JSON formatını seçin ve "Create" butonuna tıklayın
 11. JSON anahtar dosyası otomatik olarak bilgisayarınıza indirilecektir
+
+### Mevcut servis hesabına izin ekleme (eğer servis hesabınız zaten oluşturulmuşsa)
+
+1. Cloud Console'da "IAM & Admin" > "IAM" bölümüne gidin
+2. GitHub Actions için kullandığınız servis hesabını bulun
+3. "Düzenle" (Kalem simgesi) butonuna tıklayın
+4. "Rol ekle" butonuna tıklayın
+5. Aşağıdaki rolleri ekleyin:
+   - Artifact Registry Administrator
+   - Service Account User
+   - Service Usage Admin
+6. "Kaydet" butonuna tıklayın
 
 ## 5. GitHub Repository Ayarları
 

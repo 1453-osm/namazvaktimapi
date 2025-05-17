@@ -33,10 +33,11 @@ jobs:
           install_components: "beta"
 
       # Artifact Registry işlemleri için hazırlık
-      - name: Enable needed APIs
-        run: |
-          gcloud services enable artifactregistry.googleapis.com
-          gcloud services enable run.googleapis.com
+      # API servislerini etkinleştirme (gerekli izinler yoksa atlayın)
+      # - name: Enable needed APIs
+      #   run: |
+      #     gcloud services enable artifactregistry.googleapis.com
+      #     gcloud services enable run.googleapis.com
 
       # Artifact Registry repository oluşturma (yoksa)
       - name: Create Artifact Registry Repository
