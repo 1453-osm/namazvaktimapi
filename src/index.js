@@ -14,7 +14,7 @@ const { scheduleMonthlyCleanup } = require('./scripts/cleanupOldPrayerTimes');
 // Config
 dotenv.config({ path: process.env.NODE_ENV === 'production' ? null : '.env', debug: process.env.DEBUG === 'true', optional: true });
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // Middlewares
 app.use(cors());
