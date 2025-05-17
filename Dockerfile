@@ -2,11 +2,14 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Express ve CORS modüllerini kur
-RUN npm install express cors
+# Paket dosyalarını kopyala
+COPY package*.json ./
 
-# Sadece index.js dosyasını kopyala
-COPY src/index.js ./index.js
+# Bağımlılıkları yükle (üretim için)
+RUN npm ci --only=production
+
+# Kaynak dosyaları kopyala
+COPY src/ ./src/
 
 # Ortam değişkenlerini ayarla
 ENV PORT=8080
@@ -16,4 +19,4 @@ ENV NODE_ENV=production
 EXPOSE 8080
 
 # Uygulamayı başlat
-CMD ["node", "index.js"] 
+CMD ["node", "src/index.js"] 

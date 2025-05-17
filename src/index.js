@@ -1,5 +1,12 @@
 const express = require('express');
 const cors = require('cors');
+const dotenv = require('dotenv');
+
+// Veritabanı bağlantısı
+const { testConnection } = require('./config/turso');
+
+// Config
+dotenv.config({ path: process.env.NODE_ENV === 'production' ? null : '.env', debug: process.env.DEBUG === 'true', optional: true });
 
 // Express uygulamasını oluştur
 const app = express();
@@ -9,6 +16,8 @@ const PORT = process.env.PORT || 8080;
 console.log('=== BAŞLATILIYOR ===');
 console.log('PORT:', PORT);
 console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('TURSO_DATABASE_URL:', process.env.TURSO_DATABASE_URL ? 'Tanımlı (gizli)' : 'Tanımlı değil');
+console.log('TURSO_AUTH_TOKEN:', process.env.TURSO_AUTH_TOKEN ? 'Tanımlı (gizli)' : 'Tanımlı değil');
 console.log('Ortam değişkenleri:', Object.keys(process.env).join(', '));
 
 // Middlewares
@@ -21,7 +30,7 @@ app.get('/', (req, res) => {
   console.log('Ana sayfa isteği alındı');
   res.json({ 
     status: 'success', 
-    message: 'Namaz Vakti API çalışıyor - Minimal Versiyon',
+    message: 'Namaz Vakti API çalışıyor',
     env: process.env.NODE_ENV || 'development',
     time: new Date().toISOString()
   });
@@ -37,7 +46,27 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Mockup dummmy API endpoints
+// Veritabanı bağlantı testi rotası
+app.get('/api/db-test', async (req, res) => {
+  console.log('Veritabanı bağlantı testi isteği alındı');
+  try {
+    const isConnected = await testConnection();
+    res.json({
+      status: isConnected ? 'success' : 'error',
+      message: isConnected ? 'Veritabanı bağlantısı başarılı' : 'Veritabanı bağlantısı başarısız',
+      time: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Veritabanı bağlantı testi hatası:', error.message);
+    res.status(500).json({
+      status: 'error',
+      message: 'Veritabanı bağlantı testi başarısız: ' + error.message,
+      time: new Date().toISOString()
+    });
+  }
+});
+
+// Mockup API endpoints
 app.get('/api/countries', (req, res) => {
   console.log('Countries API isteği alındı');
   res.json({
@@ -110,6 +139,15 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`PORT: ${PORT}`);
   console.log(`Ortam: ${process.env.NODE_ENV || 'development'}`);
   console.log(`URL: http://0.0.0.0:${PORT}`);
+  
+  // Veritabanı bağlantısını test et
+  testConnection()
+    .then(isConnected => {
+      console.log(`Veritabanı bağlantısı: ${isConnected ? 'Başarılı' : 'Başarısız'}`);
+    })
+    .catch(error => {
+      console.error('Veritabanı bağlantı testi hatası:', error.message);
+    });
 });
 
 // Hata yakalama
