@@ -54,12 +54,30 @@ app.get('/', (req, res) => {
   });
 });
 
-// API test rotası
+// API test rotaları
 app.get('/api/test', (req, res) => {
   console.log('Test API isteği alındı');
   res.json({
     status: 'success',
     message: 'API test rotası çalışıyor',
+    time: new Date().toISOString()
+  });
+});
+
+app.get('/api/prayer-times/test', (req, res) => {
+  console.log('Prayer Times test isteği alındı');
+  res.json({
+    status: 'success',
+    message: 'Prayer Times API test rotası çalışıyor',
+    time: new Date().toISOString()
+  });
+});
+
+app.get('/api/prayertimes/test', (req, res) => {
+  console.log('PrayerTimes (alternatif) test isteği alındı');
+  res.json({
+    status: 'success',
+    message: 'PrayerTimes alternatif API test rotası çalışıyor',
     time: new Date().toISOString()
   });
 });

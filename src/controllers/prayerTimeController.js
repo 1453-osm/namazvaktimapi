@@ -6,162 +6,65 @@ const getPrayerTimeByDate = async (req, res) => {
   try {
     const { cityId, date } = req.params;
     
-    console.log(`Namaz vakti sorgulanıyor: İlçe ID: ${cityId}, Tarih: ${date}`);
+    console.log(`Basitleştirilmiş namaz vakti sorgusu: İlçe ID: ${cityId}, Tarih: ${date}`);
     
-    if (!cityId || !date) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'İlçe ID ve tarih parametreleri gerekli'
-      });
-    }
-    
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(date)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı'
-      });
-    }
-    
-    // SQL sorgu hatalarının ayrıntılı gösterilmesi için doğrudan SQL sorgularını yapıyoruz
+    // SQL sorguları için doğrudan db bağlantısı
     const db = require('../config/db');
+    const turso = require('../config/turso');
     
-    // Önce gerekli tabloların varlığını kontrol et
     try {
-      console.log('Tablo kontrolü yapılıyor...');
-      const tableCheck = await db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='prayer_times'");
+      // 1. Mevcut tabloları kontrol et
+      console.log("⏳ Veritabanı tabloları kontrol ediliyor...");
+      const tableCheckQuery = "SELECT name FROM sqlite_master WHERE type='table'";
+      const tableCheckResult = await turso.execute(tableCheckQuery);
+      console.log("✅ Tablo Listesi:", JSON.stringify(tableCheckResult.rows));
       
-      if (!tableCheck || !tableCheck.rows || tableCheck.rows.length === 0) {
-        console.error('Hata: prayer_times tablosu bulunamadı!');
-        return res.status(500).json({
-          status: 'error',
-          message: 'Veritabanı tablosu bulunamadı: prayer_times'
-        });
-      }
-      
-      // Tablo yapısını da kontrol et
-      const tableStructure = await db.query("PRAGMA table_info(prayer_times)");
-      console.log('Prayer Times tablo yapısı:', JSON.stringify(tableStructure.rows));
-      
-      // İlçe varlığını kontrol et
-      console.log(`İlçe kontrolü (${cityId}) yapılıyor...`);
-      const cityCheck = await db.query("SELECT * FROM cities WHERE id = ? OR code = ?", [cityId, cityId]);
-      
-      if (!cityCheck || !cityCheck.rows || cityCheck.rows.length === 0) {
-        console.error(`Hata: İlçe bulunamadı! ID/Kod: ${cityId}`);
-        return res.status(404).json({
-          status: 'error',
-          message: 'Belirtilen ilçe bulunamadı'
-        });
-      }
-      
-      console.log(`İlçe bulundu:`, JSON.stringify(cityCheck.rows[0]));
-      
-      // Tablo birleştirme sorgusu yerine basit başlangıç sorgusu kullan
-      const simplifiedQuery = `
-        SELECT * FROM prayer_times 
-        WHERE city_id = ? AND date = ?
-      `;
-      
-      console.log(`Prayer Times basit sorgu: ${simplifiedQuery} [${cityId}, ${date}]`);
-      const prayerTimeResult = await db.query(simplifiedQuery, [cityCheck.rows[0].id, date]);
-      
-      if (prayerTimeResult && prayerTimeResult.rows && prayerTimeResult.rows.length > 0) {
-        console.log('Namaz vakti veritabanından bulundu');
-        return res.status(200).json({
-          status: 'success',
-          data: prayerTimeResult.rows[0]
-        });
-      }
-      
-      // Veritabanında yoksa API'den çek
-      console.log(`${cityId} için ${date} tarihinde namaz vakti bulunamadı, API'den çekilecek`);
-      
-      // Diyanet API ile veri çek ve kaydet
-      // ... (mevcut kod buraya)
-      
-    } catch (dbError) {
-      console.error('Veritabanı tablo/sorgu hatası:', dbError);
-      return res.status(500).json({
-        status: 'error',
-        message: 'Veritabanı sorgu hatası: ' + dbError.message
-      });
-    }
-    
-    // Model üzerinden sorgu
-    let prayerTime = null;
-    try {
-      prayerTime = await prayerTimeModel.getPrayerTimeByDate(cityId, date);
-    } catch (dbError) {
-      console.error('Veritabanı sorgusu hatası:', dbError);
-    }
-    
-    if (!prayerTime) {
-      console.log(`${cityId} için ${date} tarihinde namaz vakti bulunamadı, API'den çekilecek`);
+      // 2. Diyanet API ile ilgili verileri kaydet
+      console.log("⏳ Diyanet API'den veri çekiliyor...");
       try {
-        const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
+        const diyanetApi = require('../utils/diyanetApi');
         
-        if (dateRangeResponse && dateRangeResponse.success && dateRangeResponse.data) {
-          const prayerTimesResponse = await diyanetApi.getPrayerTimesByDateRangeAndCity(
-            cityId, 
-            date,
-            date
-          );
+        // API'den namaz vakitlerini çek
+        const prayerTimesResponse = await diyanetApi.getPrayerTimesByDateRangeAndCity(
+          cityId, 
+          date,
+          date
+        );
+        
+        if (prayerTimesResponse && prayerTimesResponse.success && prayerTimesResponse.data && prayerTimesResponse.data.length > 0) {
+          console.log("✅ Diyanet API'den veriler başarıyla alındı:", prayerTimesResponse.data.length);
           
-          if (prayerTimesResponse && prayerTimesResponse.success && prayerTimesResponse.data && prayerTimesResponse.data.length > 0) {
-            const prayerTimeData = prayerTimesResponse.data[0];
-            
-            try {
-              prayerTime = await prayerTimeModel.createPrayerTime(
-                parseInt(cityId),
-                date,
-                prayerTimeData.fajr,
-                prayerTimeData.sunrise,
-                prayerTimeData.dhuhr,
-                prayerTimeData.asr,
-                prayerTimeData.maghrib,
-                prayerTimeData.isha,
-                prayerTimeData.qibla,
-                prayerTimeData.gregorianDate,
-                prayerTimeData.hijriDate,
-                prayerTimeData.gregorianDateShort,
-                prayerTimeData.gregorianDateLong,
-                prayerTimeData.gregorianDateIso8601,
-                prayerTimeData.gregorianDateShortIso8601,
-                prayerTimeData.hijriDateShort,
-                prayerTimeData.hijriDateLong,
-                prayerTimeData.hijriDateShortIso8601,
-                prayerTimeData.hijriDateLongIso8601,
-                prayerTimeData.astronomicalSunset,
-                prayerTimeData.astronomicalSunrise,
-                prayerTimeData.qiblaTime,
-                prayerTimeData.greenwichMeanTimeZone,
-                prayerTimeData.shapeMoonUrl
-              );
-              console.log(`${cityId} için ${date} tarihindeki namaz vakti API'den çekilip kaydedildi`);
-            } catch (saveError) {
-              console.error('Namaz vakti kaydetme hatası:', saveError);
-            }
-          }
+          // API'den gelen veriyi doğrudan yanıt olarak döndür
+          const apiData = prayerTimesResponse.data[0];
+          return res.status(200).json({
+            status: 'success',
+            source: 'diyanet_api',
+            data: apiData
+          });
+        } else {
+          console.log("❌ Diyanet API'den veri alınamadı veya veri boş");
+          return res.status(404).json({
+            status: 'error',
+            message: 'Belirtilen tarih için namaz vakti bulunamadı (API yanıtı boş)'
+          });
         }
       } catch (apiError) {
-        console.error('Diyanet API namaz vakitleri hatası:', apiError);
+        console.error("❌ Diyanet API hatası:", apiError);
+        return res.status(500).json({
+          status: 'error',
+          message: 'Diyanet API\'den veri alırken hata: ' + apiError.message
+        });
       }
-    }
-    
-    if (!prayerTime) {
-      return res.status(404).json({
+      
+    } catch (dbError) {
+      console.error("❌ Veritabanı hatası:", dbError);
+      return res.status(500).json({
         status: 'error',
-        message: 'Belirtilen tarih ve ilçe için namaz vakitleri bulunamadı'
+        message: 'Veritabanı sorgusu hatası: ' + dbError.message
       });
     }
-    
-    res.status(200).json({
-      status: 'success',
-      data: prayerTime
-    });
   } catch (error) {
-    console.error('Namaz vakitlerini getirirken hata:', error);
+    console.error("❌ Genel hata:", error);
     res.status(500).json({
       status: 'error',
       message: 'Namaz vakitlerini getirirken bir hata oluştu: ' + error.message

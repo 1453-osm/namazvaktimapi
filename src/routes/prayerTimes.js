@@ -4,35 +4,29 @@ const prayerTimeController = require('../controllers/prayerTimeController');
 
 // Hata ayıklama middleware'i
 router.use((req, res, next) => {
-  console.log(`Prayer Times API İsteği: ${req.method} ${req.originalUrl}`);
+  console.log(`➡️ Prayer Times API İsteği: ${req.method} ${req.originalUrl}`);
   next();
 });
 
 // Test rotası
 router.get('/test', (req, res) => {
-  console.log('Prayer Times test rotası çalıştırıldı');
+  console.log('Test başarılı: Prayer Times API erişilebilir');
   res.status(200).json({
     status: 'success',
-    message: 'Prayer Times API testi başarılı',
+    message: 'Prayer Times API testinin sonucu başarılı',
     time: new Date().toISOString()
   });
 });
 
-// Belirli bir ilçe için tarih aralığında namaz vakitlerini getir
-router.get('/:cityId/range', prayerTimeController.getPrayerTimesByDateRange);
-
-// Belirli bir ilçe için bayram namazı vakitlerini getir
-router.get('/:cityId/eid', prayerTimeController.getEidTimes);
-
 // Belirli bir ilçe ve tarih için namaz vakitlerini getir
 router.get('/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
 
-// Hata yakalama middleware'i
-router.use((err, req, res, next) => {
-  console.error('Prayer Times API Hatası:', err);
-  res.status(500).json({
+// Hata işleme için catch-all route
+router.all('*', (req, res) => {
+  console.log('⚠️ Bilinmeyen rota:', req.originalUrl);
+  res.status(404).json({
     status: 'error',
-    message: 'Prayer Times API hatası: ' + (err.message || 'Bilinmeyen hata')
+    message: 'Belirtilen API endpointi bulunamadı'
   });
 });
 
