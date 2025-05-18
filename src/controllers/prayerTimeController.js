@@ -25,13 +25,27 @@ const getPrayerTimeByDate = async (req, res) => {
       });
     }
 
-    // 1. Veritabanından kontrol
+    // 1. Veritabanından kontrol - Detaylı debug
     try {
       console.log(`🔍 Veritabanında namaz vakti aranıyor (cityId: ${cityId}, date: ${date})...`);
+      console.log(`📊 SQL QUERY - İlk sorgu: city_id = ${cityId} AND date = ${date}`);
+      
       const dbResult = await prayerTimeModel.getPrayerTimeByDate(cityId, date);
       
+      console.log(`📊 SQL QUERY RESULT:`, dbResult ? 'Veri bulundu' : 'Veri bulunamadı');
+      
       if (dbResult) {
-        console.log(`✅ Veritabanında namaz vakti bulundu`);
+        console.log(`✅ Veritabanında namaz vakti bulundu, ID: ${dbResult.id || 'ID YOK'}`);
+        console.log(`✅ İlçe Adı: ${dbResult.city_name || 'Belirtilmemiş'}`);
+        console.log(`✅ Tarih: ${dbResult.date || 'Belirtilmemiş'}`);
+        
+        // Veri döndürülmeden önce city_id değerini kontrol et
+        console.log(`✅ İlçe ID (Veritabanı): ${dbResult.city_id || 'YOK'}`);
+        console.log(`✅ İstek İlçe ID: ${cityId}`);
+        
+        // Response verisi
+        console.log(`🔄 Response verisi (önizleme):`, JSON.stringify(dbResult).substring(0, 200) + "...");
+        
         return res.status(200).json({
           status: 'success',
           source: 'database',
@@ -42,7 +56,9 @@ const getPrayerTimeByDate = async (req, res) => {
       console.log(`⚠️ Veritabanında namaz vakti bulunamadı, Diyanet API'den alınacak`);
     } catch (dbError) {
       console.error(`⚠️ Veritabanı sorgulama hatası:`, dbError);
-      console.error('Hata detayları:', dbError.message);
+      console.error('Hata türü:', dbError.name);
+      console.error('Hata mesajı:', dbError.message);
+      console.error('Hata detayları:', dbError.stack);
       console.log(`⚠️ Diyanet API'den veri alınmaya çalışılacak`);
     }
     
@@ -56,7 +72,7 @@ const getPrayerTimeByDate = async (req, res) => {
         date
       );
       
-      console.log(`📡 API Yanıtı Alındı:`, typeof prayerTimesResponse);
+      console.log(`📡 API Yanıt Türü:`, typeof prayerTimesResponse);
       console.log(`📡 API Başarı Durumu:`, prayerTimesResponse?.success);
       console.log(`📡 API Veri Sayısı:`, prayerTimesResponse?.data?.length || 0);
       
@@ -65,6 +81,8 @@ const getPrayerTimeByDate = async (req, res) => {
         
         const apiData = prayerTimesResponse.data[0];
         console.log("📊 API Veri Özeti:", JSON.stringify(apiData).substring(0, 100) + "...");
+        console.log("📊 API Tarihi:", apiData.date || "Tarih bilgisi yok");
+        console.log("📊 API İlçe Bilgisi:", apiData.cityId || apiData.city_id || "İlçe ID bilgisi yok");
         
         // Veritabanına kaydet (arka planda, kullanıcıyı bekletmeden)
         try {
@@ -72,6 +90,9 @@ const getPrayerTimeByDate = async (req, res) => {
           
           // API'den gelen verileri formatlayıp veritabanına kaydet
           const formattedData = prayerTimeModel.formatPrayerTimeFromAPI(apiData, cityId);
+          console.log(`📊 Formatlanmış Veri (önizleme):`, JSON.stringify(formattedData).substring(0, 150) + "...");
+          console.log(`📊 Formatlanmış Tarih:`, formattedData.date);
+          console.log(`📊 Formatlanmış İlçe ID:`, formattedData.cityId);
           
           // Asenkron olarak kaydet (await yok, yanıtı beklemiyoruz)
           prayerTimeModel.createPrayerTime(
@@ -99,8 +120,8 @@ const getPrayerTimeByDate = async (req, res) => {
             formattedData.qiblaTime,
             formattedData.greenwichMeanTimezone,
             formattedData.shapeMoonUrl
-          ).then(() => {
-            console.log(`✅ Namaz vakti veritabanına kaydedildi`);
+          ).then((savedData) => {
+            console.log(`✅ Namaz vakti veritabanına kaydedildi`, savedData ? `ID: ${savedData.id}` : '');
           }).catch(saveError => {
             console.error(`❌ Namaz vakti veritabanına kaydedilemedi:`, saveError.message);
           });

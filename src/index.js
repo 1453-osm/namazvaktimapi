@@ -17,7 +17,7 @@ const { scheduleMonthlyCleanup } = require('./scripts/cleanupOldPrayerTimes');
 
 // Veritabanı bağlantısı ve şema kontrolü
 const { testConnection } = require('./config/turso');
-const { checkAndCreateSchema } = require('./utils/checkSchema');
+const { checkAndCreateSchema, inspectTableSchema } = require('./utils/checkSchema');
 
 // Config
 dotenv.config({ path: process.env.NODE_ENV === 'production' ? null : '.env', debug: process.env.DEBUG === 'true', optional: true });
@@ -171,6 +171,34 @@ app.get('/api/health', (req, res) => {
     time: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
   });
+});
+
+// Veritabanı şeması inceleme endpoint'i
+app.get('/api/db-schema', async (req, res) => {
+  console.log('Veritabanı şema inceleme isteği alındı');
+  try {
+    const tableName = req.query.table;
+    
+    if (!tableName) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Tablo adı belirtilmedi. Kullanım: /api/db-schema?table=table_name'
+      });
+    }
+    
+    const schemaInfo = await inspectTableSchema(tableName);
+    res.json({
+      status: schemaInfo.success ? 'success' : 'error',
+      table: tableName,
+      schema: schemaInfo
+    });
+  } catch (error) {
+    console.error('Veritabanı şema inceleme hatası:', error.message);
+    res.status(500).json({
+      status: 'error',
+      message: 'Veritabanı şema inceleme başarısız: ' + error.message
+    });
+  }
 });
 
 // Hata işleyici

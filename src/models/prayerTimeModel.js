@@ -204,29 +204,43 @@ const createPrayerTimesInBulk = async (cityId, apiDataList) => {
 // Belirli bir ilçe ve tarih için namaz vakitlerini getir
 const getPrayerTimeByDate = async (cityId, date) => {
   try {
-    // Önce direkt city_id ile sorgula
-    let query = `
-      SELECT 
-        pt.*,
-        c.name as city_name,
-        s.name as state_name,
-        co.name as country_name
-      FROM 
-        prayer_times pt
-      JOIN 
-        cities c ON pt.city_id = c.id
-      JOIN 
-        states s ON c.state_id = s.id
-      JOIN 
-        countries co ON s.country_id = co.id
-      WHERE 
-        pt.city_id = ? AND pt.date = ?
-    `;
+    // cityId'nin sayı mı yoksa kod mu olduğunu kontrol et
+    const isNumeric = /^\d+$/.test(cityId.toString());
+    console.log(`DEBUG - getPrayerTimeByDate - cityId: ${cityId}, isNumeric: ${isNumeric}`);
     
-    let result = await db.query(query, [cityId, date]);
-    
-    // Sonuç bulunamadıysa code ile tekrar dene
-    if (result.rows.length === 0) {
+    // İlk sorgu: Eğer sayısal bir değerse doğrudan id eşleştirmesi yap
+    if (isNumeric) {
+      console.log(`DEBUG - Sayısal ilçe ID ile sorgu yapılıyor: ${cityId}`);
+      
+      // İlk durumda direkt prayer_times.city_id = ? sorgusu
+      let query = `
+        SELECT 
+          pt.*,
+          c.name as city_name,
+          s.name as state_name,
+          co.name as country_name
+        FROM 
+          prayer_times pt
+        LEFT JOIN 
+          cities c ON pt.city_id = c.id
+        LEFT JOIN 
+          states s ON c.state_id = s.id
+        LEFT JOIN 
+          countries co ON s.country_id = co.id
+        WHERE 
+          pt.city_id = ? AND pt.date = ?
+      `;
+      
+      console.log(`DEBUG - İlk sorgu: ${query.replace(/\s+/g, ' ')}`);
+      let result = await db.query(query, [parseInt(cityId), date]);
+      console.log(`DEBUG - İlk sorgu sonuç satır sayısı: ${result.rows.length}`);
+      
+      if (result.rows.length > 0) {
+        return result.rows[0];
+      }
+      
+      // Sayısal ID ile bulunamadıysa, cities.id = ? ile dene
+      console.log(`DEBUG - Şehir ID ile ikinci sorgu deneniyor`);
       query = `
         SELECT 
           pt.*,
@@ -235,18 +249,48 @@ const getPrayerTimeByDate = async (cityId, date) => {
           co.name as country_name
         FROM 
           prayer_times pt
-        JOIN 
+        LEFT JOIN 
           cities c ON pt.city_id = c.id
-        JOIN 
+        LEFT JOIN 
           states s ON c.state_id = s.id
-        JOIN 
+        LEFT JOIN 
           countries co ON s.country_id = co.id
         WHERE 
-          c.code = ? AND pt.date = ?
+          c.id = ? AND pt.date = ?
       `;
       
-      result = await db.query(query, [cityId, date]);
+      console.log(`DEBUG - İkinci sorgu: ${query.replace(/\s+/g, ' ')}`);
+      result = await db.query(query, [parseInt(cityId), date]);
+      console.log(`DEBUG - İkinci sorgu sonuç satır sayısı: ${result.rows.length}`);
+      
+      if (result.rows.length > 0) {
+        return result.rows[0];
+      }
     }
+    
+    // Kod ile sorgu - cities.code = ?
+    console.log(`DEBUG - İlçe kodu ile sorgu deneniyor: ${cityId}`);
+    const query = `
+      SELECT 
+        pt.*,
+        c.name as city_name,
+        s.name as state_name,
+        co.name as country_name
+      FROM 
+        prayer_times pt
+      LEFT JOIN 
+        cities c ON pt.city_id = c.id
+      LEFT JOIN 
+        states s ON c.state_id = s.id
+      LEFT JOIN 
+        countries co ON s.country_id = co.id
+      WHERE 
+        c.code = ? AND pt.date = ?
+    `;
+    
+    console.log(`DEBUG - Kod sorgusu: ${query.replace(/\s+/g, ' ')}`);
+    const result = await db.query(query, [cityId.toString(), date]);
+    console.log(`DEBUG - Kod sorgusu sonuç satır sayısı: ${result.rows.length}`);
     
     return result.rows[0];
   } catch (error) {
@@ -257,29 +301,70 @@ const getPrayerTimeByDate = async (cityId, date) => {
 
 // Belirli bir ilçe için tarih aralığında namaz vakitlerini getir
 const getPrayerTimesByDateRange = async (cityId, startDate, endDate) => {
-  const query = `
-    SELECT 
-      pt.*,
-      c.name as city_name,
-      s.name as state_name,
-      co.name as country_name
-    FROM 
-      prayer_times pt
-    JOIN 
-      cities c ON pt.city_id = c.id
-    JOIN 
-      states s ON c.state_id = s.id
-    JOIN 
-      countries co ON s.country_id = co.id
-    WHERE 
-      (pt.city_id = ? OR c.code = ?) AND 
-      pt.date BETWEEN ? AND ?
-    ORDER BY 
-      pt.date ASC
-  `;
-  
   try {
-    const result = await db.query(query, [cityId, cityId, startDate, endDate]);
+    // cityId'nin sayı mı yoksa kod mu olduğunu kontrol et
+    const isNumeric = /^\d+$/.test(cityId.toString());
+    console.log(`DEBUG - getPrayerTimesByDateRange - cityId: ${cityId}, isNumeric: ${isNumeric}`);
+    
+    let query;
+    let params;
+    
+    if (isNumeric) {
+      // Sayısal ID ile sorgu
+      query = `
+        SELECT 
+          pt.*,
+          c.name as city_name,
+          s.name as state_name,
+          co.name as country_name
+        FROM 
+          prayer_times pt
+        LEFT JOIN 
+          cities c ON pt.city_id = c.id
+        LEFT JOIN 
+          states s ON c.state_id = s.id
+        LEFT JOIN 
+          countries co ON s.country_id = co.id
+        WHERE 
+          (pt.city_id = ? OR c.id = ?) AND 
+          pt.date BETWEEN ? AND ?
+        ORDER BY 
+          pt.date ASC
+      `;
+      
+      params = [parseInt(cityId), parseInt(cityId), startDate, endDate];
+    } else {
+      // Kod ile sorgu
+      query = `
+        SELECT 
+          pt.*,
+          c.name as city_name,
+          s.name as state_name,
+          co.name as country_name
+        FROM 
+          prayer_times pt
+        LEFT JOIN 
+          cities c ON pt.city_id = c.id
+        LEFT JOIN 
+          states s ON c.state_id = s.id
+        LEFT JOIN 
+          countries co ON s.country_id = co.id
+        WHERE 
+          c.code = ? AND 
+          pt.date BETWEEN ? AND ?
+        ORDER BY 
+          pt.date ASC
+      `;
+      
+      params = [cityId.toString(), startDate, endDate];
+    }
+    
+    console.log(`DEBUG - Tarih aralığı sorgusu: ${query.replace(/\s+/g, ' ')}`);
+    console.log(`DEBUG - Parametreler:`, params);
+    
+    const result = await db.query(query, params);
+    console.log(`DEBUG - Tarih aralığı sorgusu sonuç satır sayısı: ${result.rows.length}`);
+    
     return result.rows;
   } catch (error) {
     console.error(`Namaz vakitleri sorgulama hatası (ilçe: ${cityId}, tarih: ${startDate}-${endDate}):`, error);
