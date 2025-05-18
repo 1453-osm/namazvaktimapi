@@ -101,7 +101,7 @@ jobs:
           SERVICE_ACCOUNT_EMAIL=$(gcloud config get-value account)
           echo "Kullanılan servis hesabı: $SERVICE_ACCOUNT_EMAIL"
           
-          # Doğrudan Cloud Run deployment işlemine geç
+          # Compute hesabı belirtmeden deployment
           gcloud run deploy ${{ env.FULL_SERVICE_NAME }} \
             --image ${{ env.IMAGE_NAME }} \
             --platform managed \
@@ -116,7 +116,6 @@ jobs:
             --ingress=all \
             --port=8080 \
             --timeout=60s \
-            --service-account=${{ env.PROJECT_ID }}-compute@developer.gserviceaccount.com \
             --quiet
 
       - name: Deploy to Cloud Run (without secrets)
@@ -126,7 +125,7 @@ jobs:
           SERVICE_ACCOUNT_EMAIL=$(gcloud config get-value account)
           echo "Kullanılan servis hesabı: $SERVICE_ACCOUNT_EMAIL"
           
-          # Doğrudan Cloud Run deployment işlemine geç
+          # Compute hesabı belirtmeden deployment
           gcloud run deploy ${{ env.FULL_SERVICE_NAME }} \
             --image ${{ env.IMAGE_NAME }} \
             --platform managed \
@@ -140,7 +139,6 @@ jobs:
             --ingress=all \
             --port=8080 \
             --timeout=60s \
-            --service-account=${{ env.PROJECT_ID }}-compute@developer.gserviceaccount.com \
             --quiet
       
       - name: Verify Deployment
