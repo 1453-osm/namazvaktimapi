@@ -11,8 +11,9 @@ const prayerTimeRoutes = require('./routes/prayerTimes');
 // Scripts
 const { scheduleMonthlyCleanup } = require('./scripts/cleanupOldPrayerTimes');
 
-// Veritabanı bağlantısı
+// Veritabanı bağlantısı ve şema kontrolü
 const { testConnection } = require('./config/turso');
+const { checkAndCreateSchema } = require('./utils/checkSchema');
 
 // Config
 dotenv.config({ path: process.env.NODE_ENV === 'production' ? null : '.env', debug: process.env.DEBUG === 'true', optional: true });
@@ -113,13 +114,22 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       
       // Veritabanı bağlantısı başarılıysa zamanlanmış görevleri başlat
       if (isConnected) {
-        // Zamanlanmış görevleri başlat
-        try {
-          scheduleMonthlyCleanup();
-          console.log('Aylık temizleme görevi zamanlandı');
-        } catch (error) {
-          console.error('Zamanlanmış görevleri başlatırken hata:', error.message);
-        }
+        // Veritabanı şemasını kontrol et ve eksik tablolar varsa oluştur
+        checkAndCreateSchema()
+          .then(schemaResult => {
+            console.log('Şema kontrolü sonucu:', schemaResult.message);
+            
+            // Zamanlanmış görevleri başlat
+            try {
+              scheduleMonthlyCleanup();
+              console.log('Aylık temizleme görevi zamanlandı');
+            } catch (error) {
+              console.error('Zamanlanmış görevleri başlatırken hata:', error.message);
+            }
+          })
+          .catch(schemaError => {
+            console.error('Şema kontrolü hatası:', schemaError.message);
+          });
       }
     })
     .catch(error => {

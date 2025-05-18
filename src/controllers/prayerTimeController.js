@@ -23,6 +23,72 @@ const getPrayerTimeByDate = async (req, res) => {
       });
     }
     
+    // SQL sorgu hatalarının ayrıntılı gösterilmesi için doğrudan SQL sorgularını yapıyoruz
+    const db = require('../config/db');
+    
+    // Önce gerekli tabloların varlığını kontrol et
+    try {
+      console.log('Tablo kontrolü yapılıyor...');
+      const tableCheck = await db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='prayer_times'");
+      
+      if (!tableCheck || !tableCheck.rows || tableCheck.rows.length === 0) {
+        console.error('Hata: prayer_times tablosu bulunamadı!');
+        return res.status(500).json({
+          status: 'error',
+          message: 'Veritabanı tablosu bulunamadı: prayer_times'
+        });
+      }
+      
+      // Tablo yapısını da kontrol et
+      const tableStructure = await db.query("PRAGMA table_info(prayer_times)");
+      console.log('Prayer Times tablo yapısı:', JSON.stringify(tableStructure.rows));
+      
+      // İlçe varlığını kontrol et
+      console.log(`İlçe kontrolü (${cityId}) yapılıyor...`);
+      const cityCheck = await db.query("SELECT * FROM cities WHERE id = ? OR code = ?", [cityId, cityId]);
+      
+      if (!cityCheck || !cityCheck.rows || cityCheck.rows.length === 0) {
+        console.error(`Hata: İlçe bulunamadı! ID/Kod: ${cityId}`);
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen ilçe bulunamadı'
+        });
+      }
+      
+      console.log(`İlçe bulundu:`, JSON.stringify(cityCheck.rows[0]));
+      
+      // Tablo birleştirme sorgusu yerine basit başlangıç sorgusu kullan
+      const simplifiedQuery = `
+        SELECT * FROM prayer_times 
+        WHERE city_id = ? AND date = ?
+      `;
+      
+      console.log(`Prayer Times basit sorgu: ${simplifiedQuery} [${cityId}, ${date}]`);
+      const prayerTimeResult = await db.query(simplifiedQuery, [cityCheck.rows[0].id, date]);
+      
+      if (prayerTimeResult && prayerTimeResult.rows && prayerTimeResult.rows.length > 0) {
+        console.log('Namaz vakti veritabanından bulundu');
+        return res.status(200).json({
+          status: 'success',
+          data: prayerTimeResult.rows[0]
+        });
+      }
+      
+      // Veritabanında yoksa API'den çek
+      console.log(`${cityId} için ${date} tarihinde namaz vakti bulunamadı, API'den çekilecek`);
+      
+      // Diyanet API ile veri çek ve kaydet
+      // ... (mevcut kod buraya)
+      
+    } catch (dbError) {
+      console.error('Veritabanı tablo/sorgu hatası:', dbError);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Veritabanı sorgu hatası: ' + dbError.message
+      });
+    }
+    
+    // Model üzerinden sorgu
     let prayerTime = null;
     try {
       prayerTime = await prayerTimeModel.getPrayerTimeByDate(cityId, date);
@@ -98,7 +164,7 @@ const getPrayerTimeByDate = async (req, res) => {
     console.error('Namaz vakitlerini getirirken hata:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Namaz vakitlerini getirirken bir hata oluştu'
+      message: 'Namaz vakitlerini getirirken bir hata oluştu: ' + error.message
     });
   }
 };
