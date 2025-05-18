@@ -204,32 +204,35 @@ const getEidTimes = async (req, res) => {
     
     let eidTimes = await prayerTimeModel.getEidTimes(cityId);
     
-    if (!eidTimes || eidTimes.length === 0) {
+    // Eğer veritabanında kayıt yoksa Diyanet API'den çekelim
+    if (eidTimes.length === 0) {
       try {
         const eidResponse = await diyanetApi.getEid(cityId);
         
         if (eidResponse && eidResponse.success && eidResponse.data) {
-          const savePromises = eidResponse.data.map(async (eidData) => {
+          // Bayram namazı verilerini kaydedelim
+          const savePromises = eidResponse.data.map(async (eid) => {
             return await prayerTimeModel.createEidTime(
               parseInt(cityId),
-              eidData.date,
-              eidData.time,
-              eidData.type
+              eid.date,
+              eid.time,
+              eid.type
             );
           });
           
           await Promise.all(savePromises);
           
+          // Güncel listeyi tekrar çekelim
           eidTimes = await prayerTimeModel.getEidTimes(cityId);
         }
       } catch (apiError) {
-        console.error('Diyanet API bayram namazı vakitleri hatası:', apiError);
+        console.error('Bayram namazı vakti API hatası:', apiError);
       }
     }
     
     res.status(200).json({
       status: 'success',
-      data: eidTimes || []
+      data: eidTimes
     });
   } catch (error) {
     console.error('Bayram namazı vakitlerini getirirken hata:', error);

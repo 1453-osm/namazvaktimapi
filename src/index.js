@@ -39,6 +39,7 @@ app.use('/api/countries', countryRoutes);
 app.use('/api/states', stateRoutes);
 app.use('/api/cities', cityRoutes);
 app.use('/api/prayer-times', prayerTimeRoutes);
+app.use('/api/prayertimes', prayerTimeRoutes);
 
 // Ana sayfa
 app.get('/', (req, res) => {

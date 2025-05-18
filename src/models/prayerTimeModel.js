@@ -276,7 +276,7 @@ const getEidTimes = async (cityId) => {
     JOIN 
       countries co ON s.country_id = co.id
     WHERE 
-      et.city_id = $1
+      et.city_id = $1 OR c.code = $1
     ORDER BY
       et.eid_date DESC
   `;
@@ -285,7 +285,8 @@ const getEidTimes = async (cityId) => {
     const result = await db.query(query, [cityId]);
     return result.rows;
   } catch (error) {
-    throw error;
+    console.error(`Bayram namazı vakitleri sorgu hatası (ilçe: ${cityId}):`, error);
+    return [];
   }
 };
 
