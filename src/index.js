@@ -140,6 +140,35 @@ process.on('SIGTERM', () => {
 process.on('uncaughtException', (error) => {
   console.error('Yakalanmayan hata:', error.message);
   console.error(error.stack);
+  
+  // Cloud Run'da hata detaylarını zenginleştir
+  if (process.env.NODE_ENV === 'production') {
+    console.error('Hata zamanı:', new Date().toISOString());
+    console.error('Process uptime:', process.uptime());
+    console.error('Bellek kullanımı:', process.memoryUsage());
+    console.error('Ortam bilgileri:', {
+      node_env: process.env.NODE_ENV,
+      node_version: process.version,
+      platform: process.platform,
+      pid: process.pid,
+      port: process.env.PORT,
+    });
+  }
+  
   // 30 saniye süre tanı ve kapat
   setTimeout(() => process.exit(1), 30000);
+});
+
+// Promise rejection hatalarını yakala
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Yakalanmayan Promise reddi:', reason);
+  
+  // Cloud Run'da hata detaylarını zenginleştir
+  if (process.env.NODE_ENV === 'production') {
+    console.error('Hata zamanı:', new Date().toISOString());
+    console.error('Process uptime:', process.uptime());
+  }
+  
+  // Uygulamayı çökertme, sadece logla
+  // Bu tür hataların istekleri etkilememesi için
 }); 

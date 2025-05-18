@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS cities (
 CREATE TABLE IF NOT EXISTS prayer_times (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   city_id INTEGER NOT NULL,
-  prayer_date DATE NOT NULL,
+  date DATE NOT NULL,
   fajr TEXT NOT NULL,
   sunrise TEXT NOT NULL,
   dhuhr TEXT NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS prayer_times (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (city_id) REFERENCES cities(id) ON DELETE CASCADE,
-  UNIQUE (city_id, prayer_date)
+  UNIQUE (city_id, date)
 );
 
 -- Bayram namazı vakitleri tablosu

@@ -4,8 +4,8 @@ const axios = require('axios');
 const DIYANET_API_BASE_URL = 'https://awqatsalah.diyanet.gov.tr';
 
 // Diyanet API kullanıcı bilgileri
-const DIYANET_EMAIL = 'ozavciosman17@gmail.com';
-const DIYANET_PASSWORD = 'cN5+4q%F';
+const DIYANET_EMAIL = process.env.DIYANET_EMAIL || 'ozavciosman17@gmail.com';
+const DIYANET_PASSWORD = process.env.DIYANET_PASSWORD || 'cN5+4q%F';
 
 // Token bilgilerini tutacağız
 let accessToken = null;
@@ -66,7 +66,7 @@ const getToken = async () => {
       throw new Error('Diyanet API token yenileme başarısız: ' + JSON.stringify(refreshResponse.data));
     }
   } catch (error) {
-    console.error('Diyanet API token alma hatası:', error);
+    console.error('Diyanet API token alma hatası:', error.message);
     throw error;
   }
 };
@@ -90,11 +90,10 @@ const makeApiRequest = async (endpoint, method = 'GET', data = null) => {
       config.data = data;
     }
     
-    console.log(`API isteği gönderiliyor: ${method} ${endpoint}`);
     const response = await axios(config);
     return response.data;
   } catch (error) {
-    console.error(`Diyanet API isteği hatası (${endpoint}):`, error);
+    console.error(`Diyanet API isteği hatası (${endpoint}):`, error.message);
     if (error.response) {
       console.error(`API yanıt detayları: Status: ${error.response.status}, Data:`, error.response.data);
     }
@@ -126,27 +125,31 @@ const getCities = async (stateId) => {
 // Namaz vakitleri için tarih aralığını getir
 const getPrayerTimeDateRange = async () => {
   const endpoints = [
-    { path: '/api/PrayerTime/DateRange', method: 'POST', data: {} },
-    { path: '/api/PrayerTime/DateRange', method: 'GET', data: null },
-    { path: '/api/PrayerTime/GetDateRange', method: 'POST', data: {} },
-    { path: '/api/PrayerTime/GetDateRange', method: 'GET', data: null }
+    '/api/PrayerTime/DateRange', 
+    '/api/PrayerTime/GetDateRange'
   ];
   
-  for (const endpoint of endpoints) {
+  for (const path of endpoints) {
     try {
-      console.log(`DateRange isteği deneniyor: ${endpoint.method} ${endpoint.path}`);
-      const result = await makeApiRequest(endpoint.path, endpoint.method, endpoint.data);
+      // POST metodu ile dene
+      const result = await makeApiRequest(path, 'POST', {});
       
       if (result && result.success && result.data) {
         return result;
       }
+      
+      // GET metodu ile dene
+      const getResult = await makeApiRequest(path, 'GET');
+      
+      if (getResult && getResult.success && getResult.data) {
+        return getResult;
+      }
     } catch (error) {
-      console.error(`DateRange isteği başarısız (${endpoint.method} ${endpoint.path}):`, error.message);
+      console.error(`DateRange isteği başarısız (${path}):`, error.message);
     }
   }
   
-  console.warn('Tüm DateRange istekleri başarısız oldu, varsayılan değerler kullanılacak');
-  
+  // Tüm istekler başarısız olduysa varsayılan tarih aralığı döndür
   const today = new Date();
   const nextYear = new Date(); 
   nextYear.setFullYear(today.getFullYear() + 1);
@@ -178,24 +181,24 @@ const getPrayerTimesByDateRangeAndCity = async (cityId, startDate, endDate) => {
     endDate
   };
   
-  try {
-    return await makeApiRequest('/api/PrayerTime/PrayerTimesByDateRange', 'POST', data);
-  } catch (error) {
-    console.error('PrayerTimesByDateRange isteği başarısız:', error.message);
-    
+  const endpoints = [
+    '/api/PrayerTime/PrayerTimesByDateRange',
+    '/api/PrayerTime/GetPrayerTimesByDateRange',
+    '/api/PrayerTime/DateRange'
+  ];
+  
+  for (const path of endpoints) {
     try {
-      return await makeApiRequest('/api/PrayerTime/GetPrayerTimesByDateRange', 'POST', data);
-    } catch (altError) {
-      console.error('GetPrayerTimesByDateRange isteği de başarısız:', altError.message);
-      
-      try {
-        return await makeApiRequest('/api/PrayerTime/DateRange', 'POST', data);
-      } catch (finalError) {
-        console.error('Tüm namaz vakti endpoint istekleri başarısız oldu');
-        throw finalError;
+      const result = await makeApiRequest(path, 'POST', data);
+      if (result && result.success) {
+        return result;
       }
+    } catch (error) {
+      console.error(`${path} isteği başarısız:`, error.message);
     }
   }
+  
+  throw new Error('Tüm namaz vakti endpoint istekleri başarısız oldu');
 };
 
 module.exports = {

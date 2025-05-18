@@ -134,6 +134,65 @@ API istek limitlerine dikkat edilmiştir:
 - Her yer için günlük 5 istek
 - Her yer için aylık 10 tarih aralığı isteği
 
+## Google Cloud Run Deployment Rehberi
+
+Namaz Vakti API'yi Google Cloud Run'a deploy etmek için şu adımları izleyin:
+
+### Ön Koşullar
+
+1. Google Cloud hesabı
+2. Google Cloud konsolunda aktif bir proje
+3. GitHub hesabı ve bu repo'nun bir fork'u
+4. Gerekli API'lerin etkinleştirilmiş olması:
+   - Cloud Run API
+   - Cloud Build API
+   - Artifact Registry API
+   - Secret Manager API
+
+### Kurulum Adımları
+
+1. `cloud-run-setup.md` dosyasındaki adımları takip edin
+2. Gerekli secret'ları Google Cloud Secret Manager'da oluşturun:
+   - `turso-database-url`
+   - `turso-auth-token`
+3. GitHub repository'nizde şu secret'ları ayarlayın:
+   - `GCP_PROJECT_ID`
+   - `GCP_SA_KEY`
+4. Servis hesabınızın tüm gerekli rollere sahip olduğundan emin olun:
+   - Cloud Run Admin
+   - Storage Admin
+   - Cloud Build Editor
+   - Secret Manager Secret Accessor
+   - Artifact Registry Administrator
+   - Service Account User
+
+### Deploy Etme
+
+API'yi Cloud Run'a deploy etmek için:
+
+1. Değişikliklerinizi `main` branch'ine push edin veya
+2. GitHub Actions'da `Deploy to Cloud Run` workflow'unu manuel olarak tetikleyin
+
+### Hatalar ve Çözümleri
+
+1. **"artifactregistry.repositories.uploadArtifacts permission denied" hatası:**
+   - Servis hesabınıza "Artifact Registry Administrator" rolünü ekleyin
+   - Projenizde Artifact Registry API'yi etkinleştirin
+
+2. **"Deployment failed" hatası:**
+   - Cloud Run servis hesabınızın doğru izinlere sahip olduğundan emin olun
+   - Log'ları kontrol edin
+
+3. **"Secret not found" hatası:**
+   - Secret Manager'da gerekli gizli değerleri oluşturduğunuzdan emin olun
+   - Secret'ların doğru projeye eklediğinden emin olun
+
+### Kaynaklar ve Bağlantılar
+
+- [Google Cloud Run Dokümantasyonu](https://cloud.google.com/run/docs)
+- [GitHub Actions ile Cloud Run Deployment](https://github.com/google-github-actions/deploy-cloudrun)
+- [Artifact Registry Kullanımı](https://cloud.google.com/artifact-registry/docs)
+
 ## Lisans
 
 ISC 

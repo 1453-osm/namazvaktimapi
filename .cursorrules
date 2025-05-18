@@ -16,3 +16,6 @@ günlük içerik:awqatsalah.diyanet.gov.tr/api/DailyContent
 bayram:awqatsalah.diyanet.gov.tr/api/PrayerTime/Eid/{cityId}
 - diyanet api Kullanıcı Adı: ozavciosman17@gmail.com - Şifre: cN5+4q%F
 - diyanet api istek sınırı: yer bazında günlük 5, daterange endpoint'i için yer bazında aylık 10 istek
+- cloud run proje adı:namazvaktimapi
+- cloud run proje id:namazvaktimapi-1453
+- cloud run proje numarası:584188946094

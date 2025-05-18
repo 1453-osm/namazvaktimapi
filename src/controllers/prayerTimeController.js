@@ -48,7 +48,20 @@ const getPrayerTimeByDate = async (req, res) => {
               prayerTimeData.isha,
               prayerTimeData.qibla,
               prayerTimeData.gregorianDate,
-              prayerTimeData.hijriDate
+              prayerTimeData.hijriDate,
+              prayerTimeData.gregorianDateShort,
+              prayerTimeData.gregorianDateLong,
+              prayerTimeData.gregorianDateIso8601,
+              prayerTimeData.gregorianDateShortIso8601,
+              prayerTimeData.hijriDateShort,
+              prayerTimeData.hijriDateLong,
+              prayerTimeData.hijriDateShortIso8601,
+              prayerTimeData.hijriDateLongIso8601,
+              prayerTimeData.astronomicalSunset,
+              prayerTimeData.astronomicalSunrise,
+              prayerTimeData.qiblaTime,
+              prayerTimeData.greenwichMeanTimeZone,
+              prayerTimeData.shapeMoonUrl
             );
           }
         }

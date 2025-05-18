@@ -1,34 +1,32 @@
 const db = require('../config/db');
 
 // Namaz vakti kaydet (tüm Diyanet API alanlarıyla)
-const createPrayerTime = async (prayerTimeData) => {
-  const {
-    cityId,
-    date,
-    fajr,
-    sunrise,
-    dhuhr,
-    asr,
-    maghrib,
-    isha,
-    qibla,
-    qiblaTime,
-    gregorianDate,
-    hijriDate,
-    gregorianDateShort,
-    gregorianDateLong,
-    gregorianDateIso8601,
-    gregorianDateShortIso8601,
-    hijriDateShort,
-    hijriDateLong,
-    hijriDateShortIso8601,
-    hijriDateLongIso8601,
-    astronomicalSunset,
-    astronomicalSunrise,
-    greenwichMeanTimezone,
-    shapeMoonUrl
-  } = prayerTimeData;
-
+const createPrayerTime = async (
+  cityId,
+  date,
+  fajr,
+  sunrise,
+  dhuhr,
+  asr,
+  maghrib,
+  isha,
+  qibla,
+  gregorianDate,
+  hijriDate,
+  gregorianDateShort = null,
+  gregorianDateLong = null,
+  gregorianDateIso8601 = null,
+  gregorianDateShortIso8601 = null,
+  hijriDateShort = null,
+  hijriDateLong = null,
+  hijriDateShortIso8601 = null,
+  hijriDateLongIso8601 = null,
+  astronomicalSunset = null,
+  astronomicalSunrise = null,
+  qiblaTime = null,
+  greenwichMeanTimezone = null,
+  shapeMoonUrl = null
+) => {
   const query = `
     INSERT INTO prayer_times (
       city_id, date, fajr, sunrise, dhuhr, asr, maghrib, isha, 
@@ -144,8 +142,33 @@ const createPrayerTimesInBulk = async (cityId, apiDataList) => {
   try {
     const results = [];
     for (const apiItem of apiDataList) {
-      const prayerTimeData = formatPrayerTimeFromAPI(apiItem, cityId);
-      const savedData = await createPrayerTime(prayerTimeData);
+      const formattedData = formatPrayerTimeFromAPI(apiItem, cityId);
+      const savedData = await createPrayerTime(
+        formattedData.cityId,
+        formattedData.date,
+        formattedData.fajr,
+        formattedData.sunrise,
+        formattedData.dhuhr,
+        formattedData.asr,
+        formattedData.maghrib,
+        formattedData.isha,
+        formattedData.qibla,
+        formattedData.gregorianDate,
+        formattedData.hijriDate,
+        formattedData.gregorianDateShort,
+        formattedData.gregorianDateLong,
+        formattedData.gregorianDateIso8601,
+        formattedData.gregorianDateShortIso8601,
+        formattedData.hijriDateShort,
+        formattedData.hijriDateLong,
+        formattedData.hijriDateShortIso8601,
+        formattedData.hijriDateLongIso8601,
+        formattedData.astronomicalSunset,
+        formattedData.astronomicalSunrise,
+        formattedData.qiblaTime,
+        formattedData.greenwichMeanTimezone,
+        formattedData.shapeMoonUrl
+      );
       results.push(savedData);
     }
     return results;
