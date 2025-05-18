@@ -11,15 +11,19 @@ COPY package*.json ./
 # Bağımlılıkları yükle
 RUN npm ci --only=production
 
-# Tüm kaynak dosyalarını kopyala
+# .env dosyası dışındaki tüm dosyaları kopyala
+# Not: .dockerignore dosyasını kullanarak .env dosyasını otomatik olarak hariç tutabiliriz
 COPY . .
 
-# Ortam değişkenleri
+# Cloud Run için doğru port değerini zorla
 ENV PORT=8080
 ENV NODE_ENV=production
 
 # Port'u görünür hale getir
 EXPOSE 8080
+
+# Bilgilendirme ekle
+RUN echo "PORT çevre değişkeni: $PORT"
 
 # Sunucuyu başlat
 CMD ["node", "src/index.js"] 
