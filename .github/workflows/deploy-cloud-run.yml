@@ -2,78 +2,142 @@ name: Deploy to Cloud Run
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
+    inputs:
+      deployment_type:
+        description: 'Dağıtım türü'
+        required: true
+        default: 'production'
+        type: 'choice'
+        options:
+          - 'production'
+          - 'minimal'
+          - 'starter'
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  SERVICE_NAME: namazvakti-api
-  REGION: europe-west1
-  REPOSITORY: namazvakti-repo
-  LOCATION: europe-west1
+  PROJECT_ID: namazvaktimapi-1453
+  REGION: us-east1
+  SERVICE_NAME: namazvaktimapi
 
 jobs:
   deploy:
+    name: Deploy to Cloud Run
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1
+      - id: 'auth'
+        name: 'Google Cloud kimlik doğrulaması'
+        uses: 'google-github-actions/auth@v2'
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker to use gcloud credentials
+        run: gcloud auth configure-docker --quiet
+
+      - name: Set deployment variables
+        id: vars
+        run: |
+          DEPLOYMENT_TYPE="${{ github.event.inputs.deployment_type || 'production' }}"
+          echo "DEPLOYMENT_TYPE=$DEPLOYMENT_TYPE" >> $GITHUB_ENV
           
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          install_components: "beta"
-
-      # Artifact Registry işlemleri için hazırlık
-      # API servislerini etkinleştirme (gerekli izinler yoksa atlayın)
-      # - name: Enable needed APIs
-      #   run: |
-      #     gcloud services enable artifactregistry.googleapis.com
-      #     gcloud services enable run.googleapis.com
-
-      # Artifact Registry repository oluşturma (yoksa)
-      - name: Create Artifact Registry Repository
-        run: |
-          if ! gcloud artifacts repositories describe $REPOSITORY --location=$LOCATION; then
-            gcloud artifacts repositories create $REPOSITORY --repository-format=docker --location=$LOCATION
+          if [ "$DEPLOYMENT_TYPE" = "production" ]; then
+            echo "DOCKERFILE=Dockerfile" >> $GITHUB_ENV
+            echo "MEMORY=512Mi" >> $GITHUB_ENV
+            echo "CPU=1" >> $GITHUB_ENV
+            echo "MIN_INSTANCES=0" >> $GITHUB_ENV
+            echo "MAX_INSTANCES=2" >> $GITHUB_ENV
+            echo "USE_SECRETS=true" >> $GITHUB_ENV
+            echo "SERVICE_SUFFIX=" >> $GITHUB_ENV
+          elif [ "$DEPLOYMENT_TYPE" = "minimal" ]; then
+            echo "DOCKERFILE=Dockerfile.minimal" >> $GITHUB_ENV
+            echo "MEMORY=256Mi" >> $GITHUB_ENV
+            echo "CPU=1" >> $GITHUB_ENV
+            echo "MIN_INSTANCES=0" >> $GITHUB_ENV
+            echo "MAX_INSTANCES=1" >> $GITHUB_ENV
+            echo "USE_SECRETS=false" >> $GITHUB_ENV
+            echo "SERVICE_SUFFIX=-minimal" >> $GITHUB_ENV
+          elif [ "$DEPLOYMENT_TYPE" = "starter" ]; then
+            echo "DOCKERFILE=Dockerfile.starter" >> $GITHUB_ENV
+            echo "MEMORY=256Mi" >> $GITHUB_ENV
+            echo "CPU=1" >> $GITHUB_ENV
+            echo "MIN_INSTANCES=0" >> $GITHUB_ENV
+            echo "MAX_INSTANCES=1" >> $GITHUB_ENV
+            echo "USE_SECRETS=false" >> $GITHUB_ENV
+            echo "SERVICE_SUFFIX=-starter" >> $GITHUB_ENV
           fi
+          
+          echo "IMAGE_NAME=gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}${{ env.SERVICE_SUFFIX }}:${{ github.sha }}" >> $GITHUB_ENV
+          echo "FULL_SERVICE_NAME=${{ env.SERVICE_NAME }}${{ env.SERVICE_SUFFIX }}" >> $GITHUB_ENV
 
-      # Docker kimlik doğrulaması
-      - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker $LOCATION-docker.pkg.dev --quiet
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ env.IMAGE_NAME }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # İmajı oluştur ve gönder
-      - name: Build and push container
+      - name: Deploy to Cloud Run (with secrets)
+        if: env.USE_SECRETS == 'true'
         run: |
-          docker build -t $LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE_NAME:${{ github.sha }} .
-          docker push $LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE_NAME:${{ github.sha }}
-
-      # Cloud Run'a deploy et
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy $SERVICE_NAME \
-            --image $LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE_NAME:${{ github.sha }} \
+          gcloud run deploy ${{ env.FULL_SERVICE_NAME }} \
+            --image ${{ env.IMAGE_NAME }} \
             --platform managed \
-            --region $REGION \
+            --region ${{ env.REGION }} \
+            --memory ${{ env.MEMORY }} \
+            --cpu ${{ env.CPU }} \
+            --min-instances ${{ env.MIN_INSTANCES }} \
+            --max-instances ${{ env.MAX_INSTANCES }} \
             --allow-unauthenticated \
             --set-env-vars="NODE_ENV=production" \
             --set-secrets="TURSO_DATABASE_URL=turso-database-url:latest,TURSO_AUTH_TOKEN=turso-auth-token:latest" \
-            --memory 256Mi \
-            --cpu 1 \
-            --min-instances=0 \
-            --max-instances=10 \
-            --concurrency=80 \
-            --timeout=300s \
-            --verbosity=debug
+            --ingress=all \
+            --port=8080 \
+            --timeout=60s \
+            --service-account=${{ env.PROJECT_ID }}-compute@developer.gserviceaccount.com \
+            --quiet
 
-      - name: Show deployed URL
-        run: gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)' 
+      - name: Deploy to Cloud Run (without secrets)
+        if: env.USE_SECRETS == 'false'
+        run: |
+          gcloud run deploy ${{ env.FULL_SERVICE_NAME }} \
+            --image ${{ env.IMAGE_NAME }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --memory ${{ env.MEMORY }} \
+            --cpu ${{ env.CPU }} \
+            --min-instances ${{ env.MIN_INSTANCES }} \
+            --max-instances ${{ env.MAX_INSTANCES }} \
+            --allow-unauthenticated \
+            --set-env-vars="NODE_ENV=production" \
+            --ingress=all \
+            --port=8080 \
+            --timeout=60s \
+            --service-account=${{ env.PROJECT_ID }}-compute@developer.gserviceaccount.com \
+            --quiet
+      
+      - name: Verify Deployment
+        run: |
+          gcloud run services describe ${{ env.FULL_SERVICE_NAME }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)'
+          
+          echo "Dağıtım başarıyla tamamlandı! Servis çalışıyor: ${{ env.FULL_SERVICE_NAME }}" 
