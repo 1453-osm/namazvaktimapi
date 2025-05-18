@@ -6,6 +6,8 @@ const getPrayerTimeByDate = async (req, res) => {
   try {
     const { cityId, date } = req.params;
     
+    console.log(`Namaz vakti sorgulanıyor: İlçe ID: ${cityId}, Tarih: ${date}`);
+    
     if (!cityId || !date) {
       return res.status(400).json({
         status: 'error',
@@ -21,9 +23,15 @@ const getPrayerTimeByDate = async (req, res) => {
       });
     }
     
-    let prayerTime = await prayerTimeModel.getPrayerTimeByDate(cityId, date);
+    let prayerTime = null;
+    try {
+      prayerTime = await prayerTimeModel.getPrayerTimeByDate(cityId, date);
+    } catch (dbError) {
+      console.error('Veritabanı sorgusu hatası:', dbError);
+    }
     
     if (!prayerTime) {
+      console.log(`${cityId} için ${date} tarihinde namaz vakti bulunamadı, API'den çekilecek`);
       try {
         const dateRangeResponse = await diyanetApi.getPrayerTimeDateRange();
         
@@ -37,32 +45,37 @@ const getPrayerTimeByDate = async (req, res) => {
           if (prayerTimesResponse && prayerTimesResponse.success && prayerTimesResponse.data && prayerTimesResponse.data.length > 0) {
             const prayerTimeData = prayerTimesResponse.data[0];
             
-            prayerTime = await prayerTimeModel.createPrayerTime(
-              parseInt(cityId),
-              date,
-              prayerTimeData.fajr,
-              prayerTimeData.sunrise,
-              prayerTimeData.dhuhr,
-              prayerTimeData.asr,
-              prayerTimeData.maghrib,
-              prayerTimeData.isha,
-              prayerTimeData.qibla,
-              prayerTimeData.gregorianDate,
-              prayerTimeData.hijriDate,
-              prayerTimeData.gregorianDateShort,
-              prayerTimeData.gregorianDateLong,
-              prayerTimeData.gregorianDateIso8601,
-              prayerTimeData.gregorianDateShortIso8601,
-              prayerTimeData.hijriDateShort,
-              prayerTimeData.hijriDateLong,
-              prayerTimeData.hijriDateShortIso8601,
-              prayerTimeData.hijriDateLongIso8601,
-              prayerTimeData.astronomicalSunset,
-              prayerTimeData.astronomicalSunrise,
-              prayerTimeData.qiblaTime,
-              prayerTimeData.greenwichMeanTimeZone,
-              prayerTimeData.shapeMoonUrl
-            );
+            try {
+              prayerTime = await prayerTimeModel.createPrayerTime(
+                parseInt(cityId),
+                date,
+                prayerTimeData.fajr,
+                prayerTimeData.sunrise,
+                prayerTimeData.dhuhr,
+                prayerTimeData.asr,
+                prayerTimeData.maghrib,
+                prayerTimeData.isha,
+                prayerTimeData.qibla,
+                prayerTimeData.gregorianDate,
+                prayerTimeData.hijriDate,
+                prayerTimeData.gregorianDateShort,
+                prayerTimeData.gregorianDateLong,
+                prayerTimeData.gregorianDateIso8601,
+                prayerTimeData.gregorianDateShortIso8601,
+                prayerTimeData.hijriDateShort,
+                prayerTimeData.hijriDateLong,
+                prayerTimeData.hijriDateShortIso8601,
+                prayerTimeData.hijriDateLongIso8601,
+                prayerTimeData.astronomicalSunset,
+                prayerTimeData.astronomicalSunrise,
+                prayerTimeData.qiblaTime,
+                prayerTimeData.greenwichMeanTimeZone,
+                prayerTimeData.shapeMoonUrl
+              );
+              console.log(`${cityId} için ${date} tarihindeki namaz vakti API'den çekilip kaydedildi`);
+            } catch (saveError) {
+              console.error('Namaz vakti kaydetme hatası:', saveError);
+            }
           }
         }
       } catch (apiError) {

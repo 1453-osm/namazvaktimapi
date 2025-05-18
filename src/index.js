@@ -40,6 +40,7 @@ app.use('/api/states', stateRoutes);
 app.use('/api/cities', cityRoutes);
 app.use('/api/prayer-times', prayerTimeRoutes);
 app.use('/api/prayertimes', prayerTimeRoutes);
+app.use('/api/prayer_times', prayerTimeRoutes);
 
 // Ana sayfa
 app.get('/', (req, res) => {
@@ -80,6 +81,16 @@ app.get('/api/db-test', async (req, res) => {
       time: new Date().toISOString()
     });
   }
+});
+
+// API Durum kontrolü rotası - basit bir 200 OK yanıt döner
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'API çalışıyor',
+    time: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 // Hata işleyici

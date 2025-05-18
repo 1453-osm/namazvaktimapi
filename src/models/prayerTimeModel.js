@@ -180,26 +180,51 @@ const createPrayerTimesInBulk = async (cityId, apiDataList) => {
 
 // Belirli bir ilçe ve tarih için namaz vakitlerini getir
 const getPrayerTimeByDate = async (cityId, date) => {
-  const query = `
-    SELECT 
-      pt.*,
-      c.name as city_name,
-      s.name as state_name,
-      co.name as country_name
-    FROM 
-      prayer_times pt
-    JOIN 
-      cities c ON pt.city_id = c.id
-    JOIN 
-      states s ON c.state_id = s.id
-    JOIN 
-      countries co ON s.country_id = co.id
-    WHERE 
-      (pt.city_id = $1 OR c.code = $1) AND pt.date = $2
-  `;
-  
   try {
-    const result = await db.query(query, [cityId, date]);
+    // Önce direkt city_id ile sorgula
+    let query = `
+      SELECT 
+        pt.*,
+        c.name as city_name,
+        s.name as state_name,
+        co.name as country_name
+      FROM 
+        prayer_times pt
+      JOIN 
+        cities c ON pt.city_id = c.id
+      JOIN 
+        states s ON c.state_id = s.id
+      JOIN 
+        countries co ON s.country_id = co.id
+      WHERE 
+        pt.city_id = $1 AND pt.date = $2
+    `;
+    
+    let result = await db.query(query, [cityId, date]);
+    
+    // Sonuç bulunamadıysa code ile tekrar dene
+    if (result.rows.length === 0) {
+      query = `
+        SELECT 
+          pt.*,
+          c.name as city_name,
+          s.name as state_name,
+          co.name as country_name
+        FROM 
+          prayer_times pt
+        JOIN 
+          cities c ON pt.city_id = c.id
+        JOIN 
+          states s ON c.state_id = s.id
+        JOIN 
+          countries co ON s.country_id = co.id
+        WHERE 
+          c.code = $1 AND pt.date = $2
+      `;
+      
+      result = await db.query(query, [cityId, date]);
+    }
+    
     return result.rows[0];
   } catch (error) {
     console.error(`Namaz vakitleri sorgulama hatası (ilçe: ${cityId}, tarih: ${date}):`, error);
