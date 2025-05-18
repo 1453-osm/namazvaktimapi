@@ -16,7 +16,7 @@ const locationController = require('./controllers/locationController');
 const { scheduleMonthlyCleanup } = require('./scripts/cleanupOldPrayerTimes');
 
 // Veritabanı bağlantısı ve şema kontrolü
-const { testConnection } = require('./config/turso');
+const { testConnection, execute } = require('./config/turso');
 const { checkAndCreateSchema, inspectTableSchema } = require('./utils/checkSchema');
 
 // Config
@@ -197,6 +197,275 @@ app.get('/api/db-schema', async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Veritabanı şema inceleme başarısız: ' + error.message
+    });
+  }
+});
+
+// Doğrudan SQL sorgusu yürütme endpointi (DEBUG/TEST amaçlı)
+app.get('/api/run-sql', async (req, res) => {
+  console.log('SQL sorgusu yürütme isteği alındı');
+  try {
+    const { sql, params } = req.query;
+    
+    if (!sql) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'SQL sorgusu belirtilmedi. Kullanım: /api/run-sql?sql=SELECT * FROM table_name'
+      });
+    }
+    
+    console.log(`TEST SQL sorgusu yürütülüyor: ${sql}`);
+    console.log(`TEST SQL parametreleri:`, params ? JSON.parse(params) : []);
+    
+    const result = await execute(sql, params ? JSON.parse(params) : []);
+    res.json({
+      status: 'success',
+      sql: sql,
+      params: params ? JSON.parse(params) : [],
+      result: {
+        rows: result.rows,
+        rowCount: result.rows?.length || 0
+      }
+    });
+  } catch (error) {
+    console.error('SQL sorgusu yürütme hatası:', error.message);
+    res.status(500).json({
+      status: 'error',
+      message: 'SQL sorgusu yürütme başarısız: ' + error.message,
+      sql: req.query.sql,
+      params: req.query.params
+    });
+  }
+});
+
+// Doğrudan veritabanından namaz vakti kontrolü (DEBUG/TEST amaçlı)
+app.get('/api/debug-prayer/:cityId/:date', async (req, res) => {
+  console.log('DEBUG namaz vakti isteği alındı');
+  try {
+    const { cityId, date } = req.params;
+    
+    // 1. Önce prayer_times tablosundaki tüm kayıtları kontrol et
+    const allPrayerTimes = await execute(`SELECT COUNT(*) as count FROM prayer_times`);
+    console.log(`DEBUG - Toplam namaz vakti kayıt sayısı:`, allPrayerTimes.rows[0].count);
+    
+    // 2. Bu tarih için namaz vakti var mı doğrudan kontrol et
+    const directQuery = `SELECT * FROM prayer_times WHERE date = ?`;
+    console.log(`DEBUG - Tarih sorgusu: ${directQuery} [${date}]`);
+    const directResult = await execute(directQuery, [date]);
+    
+    // 3. İlçe bilgisini kontrol et
+    const cityQuery = `SELECT * FROM cities WHERE id = ? OR code = ?`;
+    console.log(`DEBUG - İlçe sorgusu: ${cityQuery} [${cityId}, ${cityId}]`);
+    const cityResult = await execute(cityQuery, [cityId, cityId]);
+    
+    // 4. JOIN sorgusu ile her iki tabloyu da kontrol et
+    const joinQuery = `
+      SELECT 
+        pt.*, 
+        c.id as city_db_id, 
+        c.code as city_code,
+        c.name as city_name
+      FROM 
+        prayer_times pt
+      LEFT JOIN 
+        cities c ON pt.city_id = c.id
+      WHERE 
+        (pt.city_id = ? OR c.code = ?) AND 
+        pt.date = ?
+    `;
+    console.log(`DEBUG - JOIN sorgusu: ${joinQuery} [${cityId}, ${cityId}, ${date}]`);
+    const joinResult = await execute(joinQuery, [cityId, cityId, date]);
+    
+    // 5. Tüm DEBUG bilgilerini yanıtta döndür
+    res.json({
+      status: 'debug_success',
+      params: {
+        cityId: cityId,
+        date: date,
+        isNumericCityId: /^\d+$/.test(cityId.toString())
+      },
+      totalRecords: allPrayerTimes.rows[0].count,
+      dateSearch: {
+        query: directQuery,
+        params: [date],
+        found: directResult.rows.length > 0,
+        count: directResult.rows.length,
+        records: directResult.rows.slice(0, 2) // İlk 2 kayıt
+      },
+      citySearch: {
+        query: cityQuery,
+        params: [cityId, cityId],
+        found: cityResult.rows.length > 0,
+        cityInfo: cityResult.rows[0]
+      },
+      joinSearch: {
+        query: joinQuery,
+        params: [cityId, cityId, date],
+        found: joinResult.rows.length > 0,
+        count: joinResult.rows.length,
+        records: joinResult.rows
+      }
+    });
+  } catch (error) {
+    console.error('DEBUG namaz vakti sorgu hatası:', error.message);
+    res.status(500).json({
+      status: 'error',
+      message: 'DEBUG namaz vakti sorgusu başarısız: ' + error.message
+    });
+  }
+});
+
+// Veritabanı şema kontrolü endpoint'i
+app.get('/api/database-check', async (req, res) => {
+  console.log('Veritabanı kontrolü isteği alındı');
+  try {
+    // Önce bağlantıyı test et
+    const isConnected = await testConnection();
+    if (!isConnected) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Veritabanı bağlantısı başarısız',
+        time: new Date().toISOString()
+      });
+    }
+    
+    // Tablo listesini kontrol et
+    const tables = await execute("SELECT name FROM sqlite_master WHERE type='table'");
+    const tableNames = tables.rows.map(row => row.name);
+    
+    // Her tablonun satır sayısını kontrol et
+    const tableCounts = {};
+    for (const table of tableNames) {
+      if (table.startsWith('sqlite_')) continue; // SQLite sistem tablolarını atla
+      const countResult = await execute(`SELECT COUNT(*) as count FROM ${table}`);
+      tableCounts[table] = countResult.rows[0].count;
+    }
+    
+    // Tablolar arası ilişkileri kontrol et
+    let relationshipStatus = {};
+    
+    if (tableNames.includes('countries') && tableNames.includes('states')) {
+      const countryStateJoin = await execute(`
+        SELECT COUNT(*) as count 
+        FROM states s
+        LEFT JOIN countries c ON s.country_id = c.id
+      `);
+      relationshipStatus['countries_states'] = {
+        count: countryStateJoin.rows[0].count,
+        valid: true
+      };
+    }
+    
+    if (tableNames.includes('states') && tableNames.includes('cities')) {
+      const stateCityJoin = await execute(`
+        SELECT COUNT(*) as count 
+        FROM cities c
+        LEFT JOIN states s ON c.state_id = s.id
+      `);
+      relationshipStatus['states_cities'] = {
+        count: stateCityJoin.rows[0].count,
+        valid: true
+      };
+    }
+    
+    if (tableNames.includes('cities') && tableNames.includes('prayer_times')) {
+      const cityPrayerJoin = await execute(`
+        SELECT COUNT(*) as count 
+        FROM prayer_times pt
+        LEFT JOIN cities c ON pt.city_id = c.id
+      `);
+      relationshipStatus['cities_prayer_times'] = {
+        count: cityPrayerJoin.rows[0].count,
+        valid: true
+      };
+    }
+    
+    // Sonuçları döndür
+    res.json({
+      status: 'success',
+      database: {
+        connected: isConnected,
+        tables: tableNames,
+        tableCounts: tableCounts
+      },
+      relationships: relationshipStatus,
+      time: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Veritabanı kontrolü hatası:', error.message);
+    res.status(500).json({
+      status: 'error',
+      message: 'Veritabanı kontrolü başarısız: ' + error.message,
+      error: error.stack,
+      time: new Date().toISOString()
+    });
+  }
+});
+
+// Basit test verisi ekleme endpoint'i
+app.get('/api/test-data', async (req, res) => {
+  console.log('Test verisi ekleme isteği alındı');
+  try {
+    // Test verisi eklenip eklenmeyeceğini kontrol et
+    const shouldAdd = req.query.add === 'true';
+    if (!shouldAdd) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Test verisi eklemek için ?add=true parametresi gerekli'
+      });
+    }
+    
+    // Türkiye'yi ekle
+    const turkeyResult = await execute(
+      'INSERT INTO countries (code, name) VALUES (?, ?) ON CONFLICT(code) DO UPDATE SET name = ? RETURNING *',
+      ['TR', 'Türkiye', 'Türkiye']
+    );
+    const turkeyId = turkeyResult.rows[0].id;
+    
+    // İstanbul'u ekle
+    const istanbulResult = await execute(
+      'INSERT INTO states (code, country_id, name) VALUES (?, ?, ?) ON CONFLICT(code) DO UPDATE SET name = ? RETURNING *',
+      ['34', turkeyId, 'İstanbul', 'İstanbul']
+    );
+    const istanbulId = istanbulResult.rows[0].id;
+    
+    // Kadıköy'ü ekle
+    const kadikoyResult = await execute(
+      'INSERT INTO cities (code, state_id, name) VALUES (?, ?, ?) ON CONFLICT(code) DO UPDATE SET name = ? RETURNING *',
+      ['9541', istanbulId, 'Kadıköy', 'Kadıköy']
+    );
+    
+    // Bugünün namaz vakti verisi
+    const today = new Date().toISOString().split('T')[0];
+    const prayerResult = await execute(
+      `INSERT INTO prayer_times 
+       (city_id, date, fajr, sunrise, dhuhr, asr, maghrib, isha, gregorian_date, hijri_date) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+       ON CONFLICT(city_id, date) DO UPDATE SET 
+       fajr = ?, sunrise = ?, dhuhr = ?, asr = ?, maghrib = ?, isha = ?
+       RETURNING *`,
+      [
+        kadikoyResult.rows[0].id, today, '05:30', '07:00', '12:30', '15:00', '17:30', '19:00', today, '1445-05-15',
+        '05:30', '07:00', '12:30', '15:00', '17:30', '19:00'
+      ]
+    );
+    
+    res.json({
+      status: 'success',
+      message: 'Test verisi başarıyla eklendi',
+      data: {
+        country: turkeyResult.rows[0],
+        state: istanbulResult.rows[0],
+        city: kadikoyResult.rows[0],
+        prayerTime: prayerResult.rows[0]
+      }
+    });
+  } catch (error) {
+    console.error('Test verisi ekleme hatası:', error.message);
+    res.status(500).json({
+      status: 'error',
+      message: 'Test verisi eklenirken hata oluştu: ' + error.message,
+      error: error.stack
     });
   }
 });

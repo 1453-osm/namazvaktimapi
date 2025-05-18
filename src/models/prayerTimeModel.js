@@ -427,11 +427,11 @@ const getEidTimes = async (cityId) => {
       co.name as country_name
     FROM 
       eid_times et
-    JOIN 
+    LEFT JOIN 
       cities c ON et.city_id = c.id
-    JOIN 
+    LEFT JOIN 
       states s ON c.state_id = s.id
-    JOIN 
+    LEFT JOIN 
       countries co ON s.country_id = co.id
     WHERE 
       et.city_id = ? OR c.code = ?

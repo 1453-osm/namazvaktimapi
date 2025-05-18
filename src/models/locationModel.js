@@ -74,7 +74,7 @@ const getStates = async () => {
   const query = `
     SELECT s.*, c.name as country_name 
     FROM states s
-    JOIN countries c ON s.country_id = c.id
+    LEFT JOIN countries c ON s.country_id = c.id
     ORDER BY s.name ASC
   `;
   
@@ -90,7 +90,7 @@ const getStatesByCountryId = async (countryId) => {
   const query = `
     SELECT s.*, c.name as country_name 
     FROM states s
-    JOIN countries c ON s.country_id = c.id
+    LEFT JOIN countries c ON s.country_id = c.id
     WHERE s.country_id = ?
     ORDER BY s.name ASC
   `;
@@ -107,7 +107,7 @@ const getStateById = async (stateId) => {
   const query = `
     SELECT s.*, c.name as country_name 
     FROM states s
-    JOIN countries c ON s.country_id = c.id
+    LEFT JOIN countries c ON s.country_id = c.id
     WHERE s.id = ? OR s.code = ?
   `;
   
@@ -158,8 +158,8 @@ const getCities = async () => {
   const query = `
     SELECT c.*, s.name as state_name, co.name as country_name
     FROM cities c
-    JOIN states s ON c.state_id = s.id
-    JOIN countries co ON s.country_id = co.id
+    LEFT JOIN states s ON c.state_id = s.id
+    LEFT JOIN countries co ON s.country_id = co.id
     ORDER BY c.name ASC
   `;
   
@@ -175,8 +175,8 @@ const getCitiesByStateId = async (stateId) => {
   const query = `
     SELECT c.*, s.name as state_name, co.name as country_name
     FROM cities c
-    JOIN states s ON c.state_id = s.id
-    JOIN countries co ON s.country_id = co.id
+    LEFT JOIN states s ON c.state_id = s.id
+    LEFT JOIN countries co ON s.country_id = co.id
     WHERE c.state_id = ?
     ORDER BY c.name ASC
   `;
@@ -193,8 +193,8 @@ const getCityById = async (cityId) => {
   const query = `
     SELECT c.*, s.name as state_name, co.name as country_name
     FROM cities c
-    JOIN states s ON c.state_id = s.id
-    JOIN countries co ON s.country_id = co.id
+    LEFT JOIN states s ON c.state_id = s.id
+    LEFT JOIN countries co ON s.country_id = co.id
     WHERE c.id = ? OR c.code = ?
   `;
   
