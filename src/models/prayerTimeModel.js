@@ -35,39 +35,62 @@ const createPrayerTime = async (
       hijri_date_short, hijri_date_long, hijri_date_short_iso8601, hijri_date_long_iso8601,
       astronomical_sunset, astronomical_sunrise, qibla_time, greenwich_mean_timezone, shape_moon_url
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 
-      $16, $17, $18, $19, $20, $21, $22, $23, $24
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+      ?, ?, ?, ?, ?, ?, ?, ?, ?
     ) 
     ON CONFLICT (city_id, date) 
     DO UPDATE SET 
-      fajr = $3, 
-      sunrise = $4, 
-      dhuhr = $5, 
-      asr = $6, 
-      maghrib = $7, 
-      isha = $8, 
-      qibla = $9, 
-      gregorian_date = $10, 
-      hijri_date = $11,
-      gregorian_date_short = $12, 
-      gregorian_date_long = $13, 
-      gregorian_date_iso8601 = $14, 
-      gregorian_date_short_iso8601 = $15,
-      hijri_date_short = $16, 
-      hijri_date_long = $17, 
-      hijri_date_short_iso8601 = $18, 
-      hijri_date_long_iso8601 = $19,
-      astronomical_sunset = $20, 
-      astronomical_sunrise = $21, 
-      qibla_time = $22, 
-      greenwich_mean_timezone = $23, 
-      shape_moon_url = $24
+      fajr = ?, 
+      sunrise = ?, 
+      dhuhr = ?, 
+      asr = ?, 
+      maghrib = ?, 
+      isha = ?, 
+      qibla = ?, 
+      gregorian_date = ?, 
+      hijri_date = ?,
+      gregorian_date_short = ?, 
+      gregorian_date_long = ?, 
+      gregorian_date_iso8601 = ?, 
+      gregorian_date_short_iso8601 = ?,
+      hijri_date_short = ?, 
+      hijri_date_long = ?, 
+      hijri_date_short_iso8601 = ?, 
+      hijri_date_long_iso8601 = ?,
+      astronomical_sunset = ?, 
+      astronomical_sunrise = ?, 
+      qibla_time = ?, 
+      greenwich_mean_timezone = ?, 
+      shape_moon_url = ?
     RETURNING *
   `;
   
   const values = [
     cityId,
     date,
+    fajr,
+    sunrise,
+    dhuhr,
+    asr,
+    maghrib,
+    isha,
+    qibla,
+    gregorianDate,
+    hijriDate,
+    gregorianDateShort,
+    gregorianDateLong,
+    gregorianDateIso8601,
+    gregorianDateShortIso8601,
+    hijriDateShort,
+    hijriDateLong,
+    hijriDateShortIso8601,
+    hijriDateLongIso8601,
+    astronomicalSunset,
+    astronomicalSunrise,
+    qiblaTime,
+    greenwichMeanTimezone,
+    shapeMoonUrl,
+    // ON CONFLICT değerleri için tekrar
     fajr,
     sunrise,
     dhuhr,
@@ -197,7 +220,7 @@ const getPrayerTimeByDate = async (cityId, date) => {
       JOIN 
         countries co ON s.country_id = co.id
       WHERE 
-        pt.city_id = $1 AND pt.date = $2
+        pt.city_id = ? AND pt.date = ?
     `;
     
     let result = await db.query(query, [cityId, date]);
@@ -219,7 +242,7 @@ const getPrayerTimeByDate = async (cityId, date) => {
         JOIN 
           countries co ON s.country_id = co.id
         WHERE 
-          c.code = $1 AND pt.date = $2
+          c.code = ? AND pt.date = ?
       `;
       
       result = await db.query(query, [cityId, date]);
@@ -249,42 +272,67 @@ const getPrayerTimesByDateRange = async (cityId, startDate, endDate) => {
     JOIN 
       countries co ON s.country_id = co.id
     WHERE 
-      (pt.city_id = $1 OR c.code = $1) 
-      AND pt.date BETWEEN $2 AND $3
+      (pt.city_id = ? OR c.code = ?) AND 
+      pt.date BETWEEN ? AND ?
     ORDER BY 
       pt.date ASC
   `;
   
   try {
-    const result = await db.query(query, [cityId, startDate, endDate]);
+    const result = await db.query(query, [cityId, cityId, startDate, endDate]);
     return result.rows;
   } catch (error) {
-    console.error(`Namaz vakitleri tarih aralığı sorgulama hatası (ilçe: ${cityId}, başlangıç: ${startDate}, bitiş: ${endDate}):`, error);
+    console.error(`Namaz vakitleri sorgulama hatası (ilçe: ${cityId}, tarih: ${startDate}-${endDate}):`, error);
     throw error;
   }
 };
 
-// Bayram namazı vakitlerini kaydet
+// Belirli bir tarihteki namaz vakitlerini sil
+const deletePrayerTimeByDate = async (cityId, date) => {
+  const query = 'DELETE FROM prayer_times WHERE city_id = ? AND date = ? RETURNING *';
+  
+  try {
+    const result = await db.query(query, [cityId, date]);
+    return result.rows[0];
+  } catch (error) {
+    console.error(`Namaz vakti silme hatası (ilçe: ${cityId}, tarih: ${date}):`, error);
+    throw error;
+  }
+};
+
+// Belirli bir tarihten önce kaydedilmiş namaz vakitlerini sil
+const deletePrayerTimesBeforeDate = async (date) => {
+  const query = 'DELETE FROM prayer_times WHERE date < ? RETURNING date';
+  
+  try {
+    const result = await db.query(query, [date]);
+    return result.rows;
+  } catch (error) {
+    console.error(`Eski namaz vakitlerini silme hatası (tarih: ${date}):`, error);
+    throw error;
+  }
+};
+
+// Bayram namazı vakti kaydet
 const createEidTime = async (cityId, eidDate, eidTime, eidType) => {
   const query = `
-    INSERT INTO eid_times (
-      city_id, eid_date, eid_time, eid_type
-    ) VALUES ($1, $2, $3, $4)
-    ON CONFLICT (city_id, eid_date, eid_type)
-    DO UPDATE SET
-      eid_time = $3
+    INSERT INTO eid_times (city_id, eid_date, eid_time, eid_type)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT (city_id, eid_date, eid_type) 
+    DO UPDATE SET eid_time = ?
     RETURNING *
   `;
   
   try {
-    const result = await db.query(query, [cityId, eidDate, eidTime, eidType]);
+    const result = await db.query(query, [cityId, eidDate, eidTime, eidType, eidTime]);
     return result.rows[0];
   } catch (error) {
+    console.error(`Bayram namazı vakti kaydı hatası (ilçe: ${cityId}, tarih: ${eidDate}):`, error);
     throw error;
   }
 };
 
-// Belirli bir ilçe için bayram namazı vakitlerini getir
+// Bayram namazı vakitlerini getir
 const getEidTimes = async (cityId) => {
   const query = `
     SELECT 
@@ -301,26 +349,28 @@ const getEidTimes = async (cityId) => {
     JOIN 
       countries co ON s.country_id = co.id
     WHERE 
-      et.city_id = $1 OR c.code = $1
-    ORDER BY
-      et.eid_date DESC
+      et.city_id = ? OR c.code = ?
+    ORDER BY 
+      et.eid_date ASC
   `;
   
   try {
-    const result = await db.query(query, [cityId]);
+    const result = await db.query(query, [cityId, cityId]);
     return result.rows;
   } catch (error) {
-    console.error(`Bayram namazı vakitleri sorgu hatası (ilçe: ${cityId}):`, error);
-    return [];
+    console.error(`Bayram namazı vakitleri sorgulama hatası (ilçe: ${cityId}):`, error);
+    throw error;
   }
 };
 
 module.exports = {
   createPrayerTime,
-  formatPrayerTimeFromAPI,
-  createPrayerTimesInBulk,
   getPrayerTimeByDate,
   getPrayerTimesByDateRange,
+  deletePrayerTimeByDate,
+  deletePrayerTimesBeforeDate,
+  formatPrayerTimeFromAPI,
+  createPrayerTimesInBulk,
   createEidTime,
   getEidTimes
 }; 

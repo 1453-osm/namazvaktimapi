@@ -6,7 +6,11 @@ const dotenv = require('dotenv');
 const countryRoutes = require('./routes/countries');
 const stateRoutes = require('./routes/states');
 const cityRoutes = require('./routes/cities');
-const prayerTimeRoutes = require('./routes/prayerTimes');
+// const prayerTimeRoutes = require('./routes/prayerTimes');  // Eski router'ı kullanmayacağız
+
+// Controller doğrudan içe aktarılıyor
+const prayerTimeController = require('./controllers/prayerTimeController');
+const locationController = require('./controllers/locationController');
 
 // Scripts
 const { scheduleMonthlyCleanup } = require('./scripts/cleanupOldPrayerTimes');
@@ -35,13 +39,42 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Route Middlewares
+// Route Middlewares - Konum API'leri
 app.use('/api/countries', countryRoutes);
 app.use('/api/states', stateRoutes);
 app.use('/api/cities', cityRoutes);
-app.use('/api/prayer-times', prayerTimeRoutes);
-app.use('/api/prayertimes', prayerTimeRoutes);
-app.use('/api/prayer_times', prayerTimeRoutes);
+// app.use('/api/prayer-times', prayerTimeRoutes);
+// app.use('/api/prayertimes', prayerTimeRoutes);
+// app.use('/api/prayer_times', prayerTimeRoutes);
+
+// Doğrudan namaz vakti endpointleri tanımla
+app.get('/api/prayers/test', (req, res) => {
+  console.log('Namaz vakitleri test isteği alındı');
+  res.json({
+    status: 'success',
+    message: 'Namaz vakitleri API test başarılı',
+    time: new Date().toISOString()
+  });
+});
+
+// Belirli bir ilçe ve tarih için namaz vakitlerini getir (doğrudan controller fonksiyonu)
+app.get('/api/prayers/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
+
+// Alternatif path: /api/prayer-times/:cityId/:date
+app.get('/api/prayer-times/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
+
+// Alternatif path: /api/prayertimes/:cityId/:date
+app.get('/api/prayertimes/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
+
+// Belirli bir ilçe için tarih aralığında namaz vakitlerini getir
+app.get('/api/prayers/range/:cityId', prayerTimeController.getPrayerTimesByDateRange);
+app.get('/api/prayer-times/range/:cityId', prayerTimeController.getPrayerTimesByDateRange);
+app.get('/api/prayertimes/range/:cityId', prayerTimeController.getPrayerTimesByDateRange);
+
+// Belirli bir ilçe için bayram namazı vakitlerini getir
+app.get('/api/prayers/eid/:cityId', prayerTimeController.getEidTimes);
+app.get('/api/prayer-times/eid/:cityId', prayerTimeController.getEidTimes);
+app.get('/api/prayertimes/eid/:cityId', prayerTimeController.getEidTimes);
 
 // Ana sayfa
 app.get('/', (req, res) => {
@@ -50,7 +83,17 @@ app.get('/', (req, res) => {
     status: 'success', 
     message: 'Namaz Vakti API çalışıyor',
     env: process.env.NODE_ENV || 'development',
-    time: new Date().toISOString()
+    time: new Date().toISOString(),
+    endpoints: {
+      prayers: '/api/prayers/:cityId/:date',
+      prayerRange: '/api/prayers/range/:cityId?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD',
+      eid: '/api/prayers/eid/:cityId',
+      countries: '/api/countries',
+      states: '/api/states',
+      statesByCountry: '/api/states?countryId=:countryId',
+      cities: '/api/cities',
+      citiesByState: '/api/cities?stateId=:stateId'
+    }
   });
 });
 

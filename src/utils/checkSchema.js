@@ -11,6 +11,64 @@ async function checkAndCreateSchema() {
     const tables = await execute("SELECT name FROM sqlite_master WHERE type='table'");
     console.log('Mevcut tablolar:', tables.rows.map(row => row.name));
     
+    // Countries tablosunun varlığını kontrol et
+    const countriesExists = tables.rows.some(row => row.name === 'countries');
+    if (!countriesExists) {
+      console.log('Ülkeler tablosu bulunamadı, oluşturuluyor...');
+      
+      // Ülkeler tablosunu oluştur
+      await execute(`
+        CREATE TABLE countries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          code TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      console.log('Ülkeler tablosu oluşturuldu');
+    }
+    
+    // States tablosunun varlığını kontrol et
+    const statesExists = tables.rows.some(row => row.name === 'states');
+    if (!statesExists) {
+      console.log('Şehirler tablosu bulunamadı, oluşturuluyor...');
+      
+      // Şehirler tablosunu oluştur
+      await execute(`
+        CREATE TABLE states (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          code TEXT NOT NULL UNIQUE,
+          country_id INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (country_id) REFERENCES countries(id)
+        )
+      `);
+      console.log('Şehirler tablosu oluşturuldu');
+    }
+    
+    // Cities tablosunun varlığını kontrol et
+    const citiesExists = tables.rows.some(row => row.name === 'cities');
+    if (!citiesExists) {
+      console.log('İlçeler tablosu bulunamadı, oluşturuluyor...');
+      
+      // İlçeler tablosunu oluştur
+      await execute(`
+        CREATE TABLE cities (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          code TEXT NOT NULL UNIQUE,
+          state_id INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (state_id) REFERENCES states(id)
+        )
+      `);
+      console.log('İlçeler tablosu oluşturuldu');
+    }
+    
     // Prayer Times tablosunun varlığını kontrol et
     const prayerTimesExists = tables.rows.some(row => row.name === 'prayer_times');
     if (!prayerTimesExists) {
@@ -75,7 +133,7 @@ async function checkAndCreateSchema() {
     
     return {
       success: true,
-      message: 'Şema kontrolü tamamlandı'
+      message: 'Şema kontrolü tamamlandı ve eksik tablolar oluşturuldu'
     };
   } catch (error) {
     console.error('Şema kontrolü sırasında hata:', error);
