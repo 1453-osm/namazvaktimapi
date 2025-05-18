@@ -57,6 +57,16 @@ app.get('/api/prayers/test', (req, res) => {
   });
 });
 
+// Test endpoint'leri - underscore formatı (veritabanı isimlendirmesi ile uyumlu)
+app.get('/api/prayer_times/test', (req, res) => {
+  console.log('Prayer_Times (underscore) test isteği alındı');
+  res.json({
+    status: 'success',
+    message: 'Prayer_Times API test başarılı',
+    time: new Date().toISOString()
+  });
+});
+
 // Belirli bir ilçe ve tarih için namaz vakitlerini getir (doğrudan controller fonksiyonu)
 app.get('/api/prayers/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
 
@@ -66,15 +76,20 @@ app.get('/api/prayer-times/:cityId/:date', prayerTimeController.getPrayerTimeByD
 // Alternatif path: /api/prayertimes/:cityId/:date
 app.get('/api/prayertimes/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
 
+// Veritabanı ile uyumlu path: /api/prayer_times/:cityId/:date
+app.get('/api/prayer_times/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
+
 // Belirli bir ilçe için tarih aralığında namaz vakitlerini getir
 app.get('/api/prayers/range/:cityId', prayerTimeController.getPrayerTimesByDateRange);
 app.get('/api/prayer-times/range/:cityId', prayerTimeController.getPrayerTimesByDateRange);
 app.get('/api/prayertimes/range/:cityId', prayerTimeController.getPrayerTimesByDateRange);
+app.get('/api/prayer_times/range/:cityId', prayerTimeController.getPrayerTimesByDateRange);
 
 // Belirli bir ilçe için bayram namazı vakitlerini getir
 app.get('/api/prayers/eid/:cityId', prayerTimeController.getEidTimes);
 app.get('/api/prayer-times/eid/:cityId', prayerTimeController.getEidTimes);
 app.get('/api/prayertimes/eid/:cityId', prayerTimeController.getEidTimes);
+app.get('/api/prayer_times/eid/:cityId', prayerTimeController.getEidTimes);
 
 // Ana sayfa
 app.get('/', (req, res) => {
@@ -86,8 +101,11 @@ app.get('/', (req, res) => {
     time: new Date().toISOString(),
     endpoints: {
       prayers: '/api/prayers/:cityId/:date',
+      prayer_times: '/api/prayer_times/:cityId/:date',
       prayerRange: '/api/prayers/range/:cityId?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD',
+      prayer_timesRange: '/api/prayer_times/range/:cityId?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD',
       eid: '/api/prayers/eid/:cityId',
+      eid_prayer_times: '/api/prayer_times/eid/:cityId',
       countries: '/api/countries',
       states: '/api/states',
       statesByCountry: '/api/states?countryId=:countryId',
