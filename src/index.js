@@ -11,6 +11,7 @@ const cityRoutes = require('./routes/cities');
 // Controller doğrudan içe aktarılıyor
 const prayerTimeController = require('./controllers/prayerTimeController');
 const locationController = require('./controllers/locationController');
+const tempController = require('./controllers/tempController');
 
 // Scripts
 const { scheduleMonthlyCleanup } = require('./scripts/cleanupOldPrayerTimes');
@@ -171,6 +172,51 @@ app.get('/api/health', (req, res) => {
     time: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
   });
+});
+
+// Geçici olarak tablo yapısını kontrol etmek için endpoint
+app.get('/api/check-prayer-times-table', tempController.checkPrayerTimesTable);
+
+// Debug endpoint'leri
+app.get('/api/debug/check-schema', async (req, res) => {
+  try {
+    console.log('Şema kontrol isteği alındı');
+    const result = await checkAndCreateSchema();
+    res.json({
+      status: 'success',
+      message: 'Şema kontrolü tamamlandı',
+      result
+    });
+  } catch (error) {
+    console.error('Şema kontrolü hatası:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Tüm tabloları listeleme
+app.get('/api/debug/list-tables', async (req, res) => {
+  try {
+    console.log('Tablo listeleme isteği alındı');
+    
+    const query = `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`;
+    const result = await execute(query);
+    
+    res.json({
+      status: 'success',
+      tables: result.rows.map(row => row.name)
+    });
+  } catch (error) {
+    console.error('Tablo listeleme hatası:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
 });
 
 // Veritabanı şeması inceleme endpoint'i

@@ -91,13 +91,13 @@ const getPrayerTimeByDate = async (req, res) => {
           // API'den gelen verileri formatlayıp veritabanına kaydet
           const formattedData = prayerTimeModel.formatPrayerTimeFromAPI(apiData, cityId);
           console.log(`📊 Formatlanmış Veri (önizleme):`, JSON.stringify(formattedData).substring(0, 150) + "...");
-          console.log(`📊 Formatlanmış Tarih:`, formattedData.date);
+          console.log(`📊 Formatlanmış Tarih:`, formattedData.prayer_date);
           console.log(`📊 Formatlanmış İlçe ID:`, formattedData.cityId);
           
           // Asenkron olarak kaydet (await yok, yanıtı beklemiyoruz)
           prayerTimeModel.createPrayerTime(
             formattedData.cityId,
-            formattedData.date,
+            formattedData.prayer_date,
             formattedData.fajr,
             formattedData.sunrise,
             formattedData.dhuhr,
@@ -125,8 +125,8 @@ const getPrayerTimeByDate = async (req, res) => {
           }).catch(saveError => {
             console.error(`❌ Namaz vakti veritabanına kaydedilemedi:`, saveError.message);
           });
-        } catch (saveError) {
-          console.error(`❌ Veritabanına kayıt hazırlama hatası:`, saveError.message);
+        } catch (saveAttemptError) {
+          console.error(`❌ Kaydetme girişimi hatası:`, saveAttemptError.message);
         }
         
         // API verilerini doğrudan döndür

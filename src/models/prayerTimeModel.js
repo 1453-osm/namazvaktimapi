@@ -29,7 +29,7 @@ const createPrayerTime = async (
 ) => {
   const query = `
     INSERT INTO prayer_times (
-      city_id, date, fajr, sunrise, dhuhr, asr, maghrib, isha, 
+      city_id, prayer_date, fajr, sunrise, dhuhr, asr, maghrib, isha, 
       qibla, gregorian_date, hijri_date,
       gregorian_date_short, gregorian_date_long, gregorian_date_iso8601, gregorian_date_short_iso8601,
       hijri_date_short, hijri_date_long, hijri_date_short_iso8601, hijri_date_long_iso8601,
@@ -38,7 +38,7 @@ const createPrayerTime = async (
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
       ?, ?, ?, ?, ?, ?, ?, ?, ?
     ) 
-    ON CONFLICT (city_id, date) 
+    ON CONFLICT (city_id, prayer_date) 
     DO UPDATE SET 
       fajr = ?, 
       sunrise = ?, 
@@ -134,7 +134,7 @@ const formatPrayerTimeFromAPI = (apiData, cityId) => {
 
   return {
     cityId: cityId,
-    date: formattedDate,
+    prayer_date: formattedDate,
     fajr: apiData.fajr,
     sunrise: apiData.sunrise,
     dhuhr: apiData.dhuhr,
@@ -168,7 +168,7 @@ const createPrayerTimesInBulk = async (cityId, apiDataList) => {
       const formattedData = formatPrayerTimeFromAPI(apiItem, cityId);
       const savedData = await createPrayerTime(
         formattedData.cityId,
-        formattedData.date,
+        formattedData.prayer_date,
         formattedData.fajr,
         formattedData.sunrise,
         formattedData.dhuhr,
@@ -228,7 +228,7 @@ const getPrayerTimeByDate = async (cityId, date) => {
         LEFT JOIN 
           countries co ON s.country_id = co.id
         WHERE 
-          pt.city_id = ? AND pt.date = ?
+          pt.city_id = ? AND pt.prayer_date = ?
       `;
       
       console.log(`DEBUG - İlk sorgu: ${query.replace(/\s+/g, ' ')}`);
@@ -256,7 +256,7 @@ const getPrayerTimeByDate = async (cityId, date) => {
         LEFT JOIN 
           countries co ON s.country_id = co.id
         WHERE 
-          c.id = ? AND pt.date = ?
+          c.id = ? AND pt.prayer_date = ?
       `;
       
       console.log(`DEBUG - İkinci sorgu: ${query.replace(/\s+/g, ' ')}`);
@@ -266,33 +266,38 @@ const getPrayerTimeByDate = async (cityId, date) => {
       if (result.rows.length > 0) {
         return result.rows[0];
       }
+    } else {
+      // İlçe kodu ile sorgulama (sayısal olmayan değer)
+      console.log(`DEBUG - İlçe kodu ile sorgu yapılıyor: ${cityId}`);
+      const query = `
+        SELECT 
+          pt.*,
+          c.name as city_name,
+          s.name as state_name,
+          co.name as country_name
+        FROM 
+          prayer_times pt
+        LEFT JOIN 
+          cities c ON pt.city_id = c.id
+        LEFT JOIN 
+          states s ON c.state_id = s.id
+        LEFT JOIN 
+          countries co ON s.country_id = co.id
+        WHERE 
+          c.code = ? AND pt.prayer_date = ?
+      `;
+      
+      console.log(`DEBUG - İlçe kodu sorgusu: ${query.replace(/\s+/g, ' ')}`);
+      const result = await db.query(query, [cityId.toString(), date]);
+      console.log(`DEBUG - İlçe kodu sorgusu sonuç satır sayısı: ${result.rows.length}`);
+      
+      if (result.rows.length > 0) {
+        return result.rows[0];
+      }
     }
     
-    // Kod ile sorgu - cities.code = ?
-    console.log(`DEBUG - İlçe kodu ile sorgu deneniyor: ${cityId}`);
-    const query = `
-      SELECT 
-        pt.*,
-        c.name as city_name,
-        s.name as state_name,
-        co.name as country_name
-      FROM 
-        prayer_times pt
-      LEFT JOIN 
-        cities c ON pt.city_id = c.id
-      LEFT JOIN 
-        states s ON c.state_id = s.id
-      LEFT JOIN 
-        countries co ON s.country_id = co.id
-      WHERE 
-        c.code = ? AND pt.date = ?
-    `;
-    
-    console.log(`DEBUG - Kod sorgusu: ${query.replace(/\s+/g, ' ')}`);
-    const result = await db.query(query, [cityId.toString(), date]);
-    console.log(`DEBUG - Kod sorgusu sonuç satır sayısı: ${result.rows.length}`);
-    
-    return result.rows[0];
+    // Veri bulunamadı
+    return null;
   } catch (error) {
     console.error(`Namaz vakitleri sorgulama hatası (ilçe: ${cityId}, tarih: ${date}):`, error);
     throw error;
@@ -327,9 +332,9 @@ const getPrayerTimesByDateRange = async (cityId, startDate, endDate) => {
           countries co ON s.country_id = co.id
         WHERE 
           (pt.city_id = ? OR c.id = ?) AND 
-          pt.date BETWEEN ? AND ?
+          pt.prayer_date BETWEEN ? AND ?
         ORDER BY 
-          pt.date ASC
+          pt.prayer_date ASC
       `;
       
       params = [parseInt(cityId), parseInt(cityId), startDate, endDate];
@@ -351,9 +356,9 @@ const getPrayerTimesByDateRange = async (cityId, startDate, endDate) => {
           countries co ON s.country_id = co.id
         WHERE 
           c.code = ? AND 
-          pt.date BETWEEN ? AND ?
+          pt.prayer_date BETWEEN ? AND ?
         ORDER BY 
-          pt.date ASC
+          pt.prayer_date ASC
       `;
       
       params = [cityId.toString(), startDate, endDate];
@@ -363,18 +368,16 @@ const getPrayerTimesByDateRange = async (cityId, startDate, endDate) => {
     console.log(`DEBUG - Parametreler:`, params);
     
     const result = await db.query(query, params);
-    console.log(`DEBUG - Tarih aralığı sorgusu sonuç satır sayısı: ${result.rows.length}`);
-    
     return result.rows;
   } catch (error) {
-    console.error(`Namaz vakitleri sorgulama hatası (ilçe: ${cityId}, tarih: ${startDate}-${endDate}):`, error);
+    console.error(`Tarih aralığında namaz vakitleri sorgulama hatası (ilçe: ${cityId}, başlangıç: ${startDate}, bitiş: ${endDate}):`, error);
     throw error;
   }
 };
 
 // Belirli bir tarihteki namaz vakitlerini sil
 const deletePrayerTimeByDate = async (cityId, date) => {
-  const query = 'DELETE FROM prayer_times WHERE city_id = ? AND date = ? RETURNING *';
+  const query = 'DELETE FROM prayer_times WHERE city_id = ? AND prayer_date = ? RETURNING *';
   
   try {
     const result = await db.query(query, [cityId, date]);
@@ -387,7 +390,7 @@ const deletePrayerTimeByDate = async (cityId, date) => {
 
 // Belirli bir tarihten önce kaydedilmiş namaz vakitlerini sil
 const deletePrayerTimesBeforeDate = async (date) => {
-  const query = 'DELETE FROM prayer_times WHERE date < ? RETURNING date';
+  const query = 'DELETE FROM prayer_times WHERE prayer_date < ? RETURNING prayer_date';
   
   try {
     const result = await db.query(query, [date]);

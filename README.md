@@ -1,6 +1,50 @@
 # Namaz Vakti API
 
-Namaz vakitleri, ülke/şehir/ilçe bilgileri için bir REST API.
+Bu API, Diyanet İşleri Başkanlığı'nın sunduğu namaz vakitleri verilerini sunmak için geliştirilmiştir.
+
+## Yapılan Son Düzeltmeler
+
+- Veritabanı şema uyumsuzluğu düzeltildi
+  - `prayer_times` tablosunda `date` yerine `prayer_date` alanı kullanılıyor olması sorunu giderildi
+  - Tüm SQL sorgularında bu değişiklik uygulandı
+  - Modeller ve controller'lar bu değişikliğe uyumlu hale getirildi
+
+- Debug endpoint'leri eklendi:
+  - `/api/check-prayer-times-table` - Namaz vakitleri tablosunun yapısını kontrol eder
+  - `/api/debug/check-schema` - Tüm şemaları kontrol eder ve eksik olanları oluşturur
+  - `/api/debug/list-tables` - Veritabanındaki tüm tabloları listeler
+
+## API Endpoints
+
+### Ana Endpoint'ler
+
+- `/api/prayers/:cityId/:date` - Belirli bir ilçe ve tarih için namaz vakitleri
+- `/api/prayers/range/:cityId?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` - Tarih aralığında namaz vakitleri
+- `/api/prayers/eid/:cityId` - Bayram namazı vakitleri
+
+### Yer Bilgisi Endpoint'leri
+
+- `/api/countries` - Tüm ülkeler
+- `/api/states` - Tüm şehirler
+- `/api/states?countryId=:countryId` - Belirli bir ülkenin şehirleri
+- `/api/cities` - Tüm ilçeler
+- `/api/cities?stateId=:stateId` - Belirli bir şehrin ilçeleri
+
+### Test ve Durum Endpoint'leri
+
+- `/api/health` - API durumu kontrolü
+- `/api/db-test` - Veritabanı bağlantı testi
+- `/api/db-schema?table=table_name` - Belirli bir tablonun şemasını görüntüler
+
+## Örnek Kullanım
+
+```javascript
+// Belirli bir ilçe ve tarih için namaz vakitleri
+fetch('https://namazvaktimapi-nqetjxikca-ue.a.run.app/api/prayers/10658/2025-01-01')
+  .then(response => response.json())
+  .then(data => console.log(data))
+  .catch(error => console.error('Hata:', error));
+```
 
 ## Özellikler
 
