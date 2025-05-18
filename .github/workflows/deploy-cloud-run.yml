@@ -97,28 +97,11 @@ jobs:
       - name: Deploy to Cloud Run (with secrets)
         if: env.USE_SECRETS == 'true'
         run: |
-          # IAM izinlerini doğrudan gcloud CLI üzerinden ekleyelim
-          # Önce mevcut servis hesabı e-postasını alalım
+          # Servis hesabı bilgilerini log'a yaz
           SERVICE_ACCOUNT_EMAIL=$(gcloud config get-value account)
           echo "Kullanılan servis hesabı: $SERVICE_ACCOUNT_EMAIL"
           
-          # IAM izinlerini proje seviyesinde ekleyelim
-          gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
-            --member="serviceAccount:$SERVICE_ACCOUNT_EMAIL" \
-            --role="roles/run.admin" \
-            --quiet || true
-            
-          gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
-            --member="serviceAccount:$SERVICE_ACCOUNT_EMAIL" \
-            --role="roles/iam.serviceAccountUser" \
-            --quiet || true
-            
-          # Compute servis hesabının kullanılabilmesi için izinler
-          gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
-            --member="serviceAccount:${{ env.PROJECT_ID }}-compute@developer.gserviceaccount.com" \
-            --role="roles/run.invoker" \
-            --quiet || true
-            
+          # Doğrudan Cloud Run deployment işlemine geç
           gcloud run deploy ${{ env.FULL_SERVICE_NAME }} \
             --image ${{ env.IMAGE_NAME }} \
             --platform managed \
@@ -139,28 +122,11 @@ jobs:
       - name: Deploy to Cloud Run (without secrets)
         if: env.USE_SECRETS == 'false'
         run: |
-          # IAM izinlerini doğrudan gcloud CLI üzerinden ekleyelim
-          # Önce mevcut servis hesabı e-postasını alalım
+          # Servis hesabı bilgilerini log'a yaz
           SERVICE_ACCOUNT_EMAIL=$(gcloud config get-value account)
           echo "Kullanılan servis hesabı: $SERVICE_ACCOUNT_EMAIL"
           
-          # IAM izinlerini proje seviyesinde ekleyelim
-          gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
-            --member="serviceAccount:$SERVICE_ACCOUNT_EMAIL" \
-            --role="roles/run.admin" \
-            --quiet || true
-            
-          gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
-            --member="serviceAccount:$SERVICE_ACCOUNT_EMAIL" \
-            --role="roles/iam.serviceAccountUser" \
-            --quiet || true
-            
-          # Compute servis hesabının kullanılabilmesi için izinler
-          gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
-            --member="serviceAccount:${{ env.PROJECT_ID }}-compute@developer.gserviceaccount.com" \
-            --role="roles/run.invoker" \
-            --quiet || true
-            
+          # Doğrudan Cloud Run deployment işlemine geç
           gcloud run deploy ${{ env.FULL_SERVICE_NAME }} \
             --image ${{ env.IMAGE_NAME }} \
             --platform managed \
