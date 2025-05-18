@@ -97,6 +97,13 @@ jobs:
       - name: Deploy to Cloud Run (with secrets)
         if: env.USE_SECRETS == 'true'
         run: |
+          # Önce servis hesabına gerekli izinleri ver
+          gcloud iam service-accounts add-iam-policy-binding \
+            ${{ env.PROJECT_ID }}-compute@developer.gserviceaccount.com \
+            --member="serviceAccount:github-deploy@${{ env.PROJECT_ID }}.iam.gserviceaccount.com" \
+            --role="roles/iam.serviceAccountUser" \
+            --quiet || true
+            
           gcloud run deploy ${{ env.FULL_SERVICE_NAME }} \
             --image ${{ env.IMAGE_NAME }} \
             --platform managed \
@@ -117,6 +124,13 @@ jobs:
       - name: Deploy to Cloud Run (without secrets)
         if: env.USE_SECRETS == 'false'
         run: |
+          # Önce servis hesabına gerekli izinleri ver
+          gcloud iam service-accounts add-iam-policy-binding \
+            ${{ env.PROJECT_ID }}-compute@developer.gserviceaccount.com \
+            --member="serviceAccount:github-deploy@${{ env.PROJECT_ID }}.iam.gserviceaccount.com" \
+            --role="roles/iam.serviceAccountUser" \
+            --quiet || true
+            
           gcloud run deploy ${{ env.FULL_SERVICE_NAME }} \
             --image ${{ env.IMAGE_NAME }} \
             --platform managed \
