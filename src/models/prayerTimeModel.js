@@ -195,13 +195,14 @@ const getPrayerTimeByDate = async (cityId, date) => {
     JOIN 
       countries co ON s.country_id = co.id
     WHERE 
-      pt.city_id = $1 AND pt.date = $2
+      (pt.city_id = $1 OR c.code = $1) AND pt.date = $2
   `;
   
   try {
     const result = await db.query(query, [cityId, date]);
     return result.rows[0];
   } catch (error) {
+    console.error(`Namaz vakitleri sorgulama hatası (ilçe: ${cityId}, tarih: ${date}):`, error);
     throw error;
   }
 };
@@ -223,8 +224,9 @@ const getPrayerTimesByDateRange = async (cityId, startDate, endDate) => {
     JOIN 
       countries co ON s.country_id = co.id
     WHERE 
-      pt.city_id = $1 AND pt.date BETWEEN $2 AND $3
-    ORDER BY
+      (pt.city_id = $1 OR c.code = $1) 
+      AND pt.date BETWEEN $2 AND $3
+    ORDER BY 
       pt.date ASC
   `;
   
@@ -232,6 +234,7 @@ const getPrayerTimesByDateRange = async (cityId, startDate, endDate) => {
     const result = await db.query(query, [cityId, startDate, endDate]);
     return result.rows;
   } catch (error) {
+    console.error(`Namaz vakitleri tarih aralığı sorgulama hatası (ilçe: ${cityId}, başlangıç: ${startDate}, bitiş: ${endDate}):`, error);
     throw error;
   }
 };

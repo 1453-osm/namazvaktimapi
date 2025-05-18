@@ -14,7 +14,7 @@ const query = async (sql, params = []) => {
     console.error('Sorgu:', sql);
     console.error('Parametreler:', params);
     throw error;
-  }
+    }
 };
 
 // Bağlantıyı test etme yardımcı fonksiyonu
