@@ -109,20 +109,234 @@ app.get('/api/prayer_times/daterange', (req, res) => {
 
 // 4. CityId'nin path parametresi olarak kullanıldığı yeni tarih aralığı endpointleri
 app.get('/api/prayers/daterange/:cityId', (req, res) => {
-  console.log('Prayers DateRange API (path param ile): ', req.params);
-  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+  console.log('Özel Tarih Aralığı İsteği - Path Parametresi ile:');
+  console.log('URL:', req.originalUrl);
+  console.log('İstek Query Parametreleri:', req.query);
+  console.log('İstek Path Parametreleri:', req.params);
+  
+  const { cityId } = req.params;
+  const { startDate, endDate } = req.query;
+  
+  console.log(`🔍 TARİH ARALIĞI (ÖZEL) => İlçe Kodu: ${cityId}, Başlangıç: ${startDate}, Bitiş: ${endDate}`);
+  
+  // Tüm parametrelerin varlığını kontrol et
+  if (!cityId || !startDate || !endDate) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'İlçe ID, başlangıç tarihi ve bitiş tarihi parametreleri gerekli',
+      received: {
+        cityId: cityId || null,
+        startDate: startDate || null,
+        endDate: endDate || null
+      }
+    });
+  }
+  
+  // Tarih formatı kontrolü
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı',
+      received: {
+        startDate,
+        endDate
+      }
+    });
+  }
+  
+  // Doğrudan Diyanet API'den al
+  const diyanetApi = require('./utils/diyanetApi');
+  
+  diyanetApi.getPrayerTimesByDateRangeAndCity(cityId, startDate, endDate)
+    .then(prayerTimesResponse => {
+      if (prayerTimesResponse && prayerTimesResponse.success && prayerTimesResponse.data && prayerTimesResponse.data.length > 0) {
+        console.log(`✅ Diyanet API'den veri alındı, veri sayısı: ${prayerTimesResponse.data.length}`);
+        
+        // Model fonksiyonu olmadan doğrudan API verilerini döndür
+        return res.status(200).json({
+          status: 'success',
+          source: 'diyanet_api',
+          data: prayerTimesResponse.data
+        });
+      } else {
+        console.log(`❌ Diyanet API'den veri alınamadı veya veri boş`);
+        
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı',
+          params: { cityId, startDate, endDate }
+        });
+      }
+    })
+    .catch(error => {
+      console.error(`❌ Diyanet API hatası:`, error.message);
+      
+      return res.status(500).json({
+        status: 'error',
+        message: 'Namaz vakitleri alınırken bir hata oluştu: ' + error.message
+      });
+    });
 });
 
+// Diğer tarih aralığı endpoint'leri için de aynı özel fonksiyonu kullan
 app.get('/api/prayer-times/daterange/:cityId', (req, res) => {
-  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+  console.log('Özel Tarih Aralığı İsteği (prayer-times) - Path Parametresi ile:');
+  
+  const { cityId } = req.params;
+  const { startDate, endDate } = req.query;
+  
+  console.log(`🔍 TARİH ARALIĞI (ÖZEL) => İlçe Kodu: ${cityId}, Başlangıç: ${startDate}, Bitiş: ${endDate}`);
+  
+  // Özel controller'ı tekrar yazıp çağırıyoruz
+  // Tüm parametrelerin varlığını kontrol et
+  if (!cityId || !startDate || !endDate) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'İlçe ID, başlangıç tarihi ve bitiş tarihi parametreleri gerekli',
+      received: {
+        cityId: cityId || null,
+        startDate: startDate || null,
+        endDate: endDate || null
+      }
+    });
+  }
+  
+  // Tarih formatı kontrolü
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı',
+      received: {
+        startDate,
+        endDate
+      }
+    });
+  }
+  
+  // Doğrudan Diyanet API'den al
+  const diyanetApi = require('./utils/diyanetApi');
+  
+  diyanetApi.getPrayerTimesByDateRangeAndCity(cityId, startDate, endDate)
+    .then(prayerTimesResponse => {
+      if (prayerTimesResponse && prayerTimesResponse.success && prayerTimesResponse.data && prayerTimesResponse.data.length > 0) {
+        console.log(`✅ Diyanet API'den veri alındı, veri sayısı: ${prayerTimesResponse.data.length}`);
+        
+        // Model fonksiyonu olmadan doğrudan API verilerini döndür
+        return res.status(200).json({
+          status: 'success',
+          source: 'diyanet_api',
+          data: prayerTimesResponse.data
+        });
+      } else {
+        console.log(`❌ Diyanet API'den veri alınamadı veya veri boş`);
+        
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı',
+          params: { cityId, startDate, endDate }
+        });
+      }
+    })
+    .catch(error => {
+      console.error(`❌ Diyanet API hatası:`, error.message);
+      
+      return res.status(500).json({
+        status: 'error',
+        message: 'Namaz vakitleri alınırken bir hata oluştu: ' + error.message
+      });
+    });
 });
 
 app.get('/api/prayertimes/daterange/:cityId', (req, res) => {
-  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+  // Aynı işlemi yap
+  const { cityId } = req.params;
+  const { startDate, endDate } = req.query;
+  
+  if (!cityId || !startDate || !endDate) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'İlçe ID, başlangıç tarihi ve bitiş tarihi parametreleri gerekli'
+    });
+  }
+  
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı'
+    });
+  }
+  
+  const diyanetApi = require('./utils/diyanetApi');
+  
+  diyanetApi.getPrayerTimesByDateRangeAndCity(cityId, startDate, endDate)
+    .then(prayerTimesResponse => {
+      if (prayerTimesResponse?.success && prayerTimesResponse?.data?.length > 0) {
+        return res.status(200).json({
+          status: 'success',
+          source: 'diyanet_api',
+          data: prayerTimesResponse.data
+        });
+      } else {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı'
+        });
+      }
+    })
+    .catch(error => {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Namaz vakitleri alınırken bir hata oluştu: ' + error.message
+      });
+    });
 });
 
 app.get('/api/prayer_times/daterange/:cityId', (req, res) => {
-  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+  // Aynı işlemi yap
+  const { cityId } = req.params;
+  const { startDate, endDate } = req.query;
+  
+  if (!cityId || !startDate || !endDate) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'İlçe ID, başlangıç tarihi ve bitiş tarihi parametreleri gerekli'
+    });
+  }
+  
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı'
+    });
+  }
+  
+  const diyanetApi = require('./utils/diyanetApi');
+  
+  diyanetApi.getPrayerTimesByDateRangeAndCity(cityId, startDate, endDate)
+    .then(prayerTimesResponse => {
+      if (prayerTimesResponse?.success && prayerTimesResponse?.data?.length > 0) {
+        return res.status(200).json({
+          status: 'success',
+          source: 'diyanet_api',
+          data: prayerTimesResponse.data
+        });
+      } else {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı'
+        });
+      }
+    })
+    .catch(error => {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Namaz vakitleri alınırken bir hata oluştu: ' + error.message
+      });
+    });
 });
 
 // 5. KONUM ENDPOINTLERİ (ÜLKE-ŞEHİR-İLÇE) 
