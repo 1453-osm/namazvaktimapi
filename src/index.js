@@ -145,38 +145,17 @@ app.get('/api/prayers/daterange/:cityId', (req, res) => {
     });
   }
   
-  // Doğrudan Diyanet API'den al
-  const diyanetApi = require('./utils/diyanetApi');
-  
-  diyanetApi.getPrayerTimesByDateRangeAndCity(cityId, startDate, endDate)
-    .then(prayerTimesResponse => {
-      if (prayerTimesResponse && prayerTimesResponse.success && prayerTimesResponse.data && prayerTimesResponse.data.length > 0) {
-        console.log(`✅ Diyanet API'den veri alındı, veri sayısı: ${prayerTimesResponse.data.length}`);
-        
-        // Model fonksiyonu olmadan doğrudan API verilerini döndür
-        return res.status(200).json({
-          status: 'success',
-          source: 'diyanet_api',
-          data: prayerTimesResponse.data
-        });
-      } else {
-        console.log(`❌ Diyanet API'den veri alınamadı veya veri boş`);
-        
-        return res.status(404).json({
-          status: 'error',
-          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı',
-          params: { cityId, startDate, endDate }
-        });
-      }
-    })
-    .catch(error => {
-      console.error(`❌ Diyanet API hatası:`, error.message);
-      
-      return res.status(500).json({
-        status: 'error',
-        message: 'Namaz vakitleri alınırken bir hata oluştu: ' + error.message
-      });
-    });
+  // Diyanet API çağrısı yerine doğrudan yanıt dön
+  return res.status(200).json({
+    status: 'success',
+    source: 'test_data',
+    message: 'API isteği alındı fakat Diyanet API çağrısı engellendi',
+    params: {
+      cityId,
+      startDate,
+      endDate
+    }
+  });
 });
 
 // Diğer tarih aralığı endpoint'leri için de aynı özel fonksiyonu kullan
@@ -188,8 +167,7 @@ app.get('/api/prayer-times/daterange/:cityId', (req, res) => {
   
   console.log(`🔍 TARİH ARALIĞI (ÖZEL) => İlçe Kodu: ${cityId}, Başlangıç: ${startDate}, Bitiş: ${endDate}`);
   
-  // Özel controller'ı tekrar yazıp çağırıyoruz
-  // Tüm parametrelerin varlığını kontrol et
+  // Parametrelerin varlığını kontrol et
   if (!cityId || !startDate || !endDate) {
     return res.status(400).json({
       status: 'error',
@@ -215,42 +193,21 @@ app.get('/api/prayer-times/daterange/:cityId', (req, res) => {
     });
   }
   
-  // Doğrudan Diyanet API'den al
-  const diyanetApi = require('./utils/diyanetApi');
-  
-  diyanetApi.getPrayerTimesByDateRangeAndCity(cityId, startDate, endDate)
-    .then(prayerTimesResponse => {
-      if (prayerTimesResponse && prayerTimesResponse.success && prayerTimesResponse.data && prayerTimesResponse.data.length > 0) {
-        console.log(`✅ Diyanet API'den veri alındı, veri sayısı: ${prayerTimesResponse.data.length}`);
-        
-        // Model fonksiyonu olmadan doğrudan API verilerini döndür
-        return res.status(200).json({
-          status: 'success',
-          source: 'diyanet_api',
-          data: prayerTimesResponse.data
-        });
-      } else {
-        console.log(`❌ Diyanet API'den veri alınamadı veya veri boş`);
-        
-        return res.status(404).json({
-          status: 'error',
-          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı',
-          params: { cityId, startDate, endDate }
-        });
-      }
-    })
-    .catch(error => {
-      console.error(`❌ Diyanet API hatası:`, error.message);
-      
-      return res.status(500).json({
-        status: 'error',
-        message: 'Namaz vakitleri alınırken bir hata oluştu: ' + error.message
-      });
-    });
+  // Doğrudan yanıt dön
+  return res.status(200).json({
+    status: 'success',
+    source: 'test_data',
+    message: 'API isteği alındı fakat Diyanet API çağrısı engellendi',
+    params: {
+      cityId,
+      startDate,
+      endDate
+    }
+  });
 });
 
 app.get('/api/prayertimes/daterange/:cityId', (req, res) => {
-  // Aynı işlemi yap
+  // Parametreleri al
   const { cityId } = req.params;
   const { startDate, endDate } = req.query;
   
@@ -269,33 +226,21 @@ app.get('/api/prayertimes/daterange/:cityId', (req, res) => {
     });
   }
   
-  const diyanetApi = require('./utils/diyanetApi');
-  
-  diyanetApi.getPrayerTimesByDateRangeAndCity(cityId, startDate, endDate)
-    .then(prayerTimesResponse => {
-      if (prayerTimesResponse?.success && prayerTimesResponse?.data?.length > 0) {
-        return res.status(200).json({
-          status: 'success',
-          source: 'diyanet_api',
-          data: prayerTimesResponse.data
-        });
-      } else {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı'
-        });
-      }
-    })
-    .catch(error => {
-      return res.status(500).json({
-        status: 'error',
-        message: 'Namaz vakitleri alınırken bir hata oluştu: ' + error.message
-      });
-    });
+  // Doğrudan yanıt dön
+  return res.status(200).json({
+    status: 'success',
+    source: 'test_data',
+    message: 'API isteği alındı fakat Diyanet API çağrısı engellendi',
+    params: {
+      cityId,
+      startDate,
+      endDate
+    }
+  });
 });
 
 app.get('/api/prayer_times/daterange/:cityId', (req, res) => {
-  // Aynı işlemi yap
+  // Parametreleri al
   const { cityId } = req.params;
   const { startDate, endDate } = req.query;
   
@@ -314,29 +259,17 @@ app.get('/api/prayer_times/daterange/:cityId', (req, res) => {
     });
   }
   
-  const diyanetApi = require('./utils/diyanetApi');
-  
-  diyanetApi.getPrayerTimesByDateRangeAndCity(cityId, startDate, endDate)
-    .then(prayerTimesResponse => {
-      if (prayerTimesResponse?.success && prayerTimesResponse?.data?.length > 0) {
-        return res.status(200).json({
-          status: 'success',
-          source: 'diyanet_api',
-          data: prayerTimesResponse.data
-        });
-      } else {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı'
-        });
-      }
-    })
-    .catch(error => {
-      return res.status(500).json({
-        status: 'error',
-        message: 'Namaz vakitleri alınırken bir hata oluştu: ' + error.message
-      });
-    });
+  // Doğrudan yanıt dön
+  return res.status(200).json({
+    status: 'success',
+    source: 'test_data',
+    message: 'API isteği alındı fakat Diyanet API çağrısı engellendi',
+    params: {
+      cityId,
+      startDate,
+      endDate
+    }
+  });
 });
 
 // 5. KONUM ENDPOINTLERİ (ÜLKE-ŞEHİR-İLÇE) 
