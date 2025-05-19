@@ -64,157 +64,115 @@ app.get('/api/test', (req, res) => {
 
 // 2. NAMAZ VAKİTLERİ - TEKİL TARİH ENDPOINTLERİ
 console.log('Tekil tarih endpointleri tanımlanıyor');
-app.get('/api/prayers/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
-app.get('/api/prayer-times/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
-app.get('/api/prayertimes/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
-app.get('/api/prayer_times/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
 
-// 3. NAMAZ VAKİTLERİ - TARİH ARALIĞI ENDPOINTLERİ - ÖZEL OLARAK AYRILDI
-console.log('Tarih aralığı endpointleri tanımlanıyor');
-
-// Tarih aralığı için özel endpoint - City ID'yi direkt query string'den al
+// KORUMA - ÖZEL PATH'LERİ ÖNCE TANIMLAYALIM
+// Bu özel yol tanımları, express.js'in yol eşleştirme algoritmasına göre öncelikle karşılaştırılır
 app.get('/api/prayers/daterange', (req, res) => {
-  console.log('Prayers DateRange API (query ile): ', req.query);
+  console.log('QUERY PARAM Tarih Aralığı İsteği: ', req.query);
   const { cityId, startDate, endDate } = req.query;
   
-  if (!cityId) {
+  if (!cityId || !startDate || !endDate) {
     return res.status(400).json({
       status: 'error',
-      message: 'cityId parametresi gerekli',
+      message: 'cityId, startDate ve endDate parametreleri gerekli',
       path: req.path,
       query: req.query
     });
   }
   
-  // cityId'yi params objesine ekleyerek controller'a aktar
-  req.params = { ...req.params, cityId };
-  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı'
+    });
+  }
+  
+  // Doğrudan yanıt dön
+  return res.status(200).json({
+    status: 'success',
+    source: 'test_data',
+    message: 'API isteği alındı (Query ile)',
+    params: {
+      cityId,
+      startDate,
+      endDate
+    }
+  });
 });
 
-// Alternatif yazımlar
 app.get('/api/prayer-times/daterange', (req, res) => {
-  req.params = { ...req.params, cityId: req.query.cityId };
-  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+  console.log('QUERY PARAM Tarih Aralığı İsteği (prayer-times): ', req.query);
+  const { cityId, startDate, endDate } = req.query;
+  
+  if (!cityId || !startDate || !endDate) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'cityId, startDate ve endDate parametreleri gerekli'
+    });
+  }
+  
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı'
+    });
+  }
+  
+  // Doğrudan yanıt dön
+  return res.status(200).json({
+    status: 'success',
+    source: 'test_data',
+    message: 'API isteği alındı (Query ile)',
+    params: {
+      cityId,
+      startDate,
+      endDate
+    }
+  });
 });
 
 app.get('/api/prayertimes/daterange', (req, res) => {
-  req.params = { ...req.params, cityId: req.query.cityId };
-  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+  // Aynı işlemi yap
+  const { cityId, startDate, endDate } = req.query;
+  
+  if (!cityId || !startDate || !endDate) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'cityId, startDate ve endDate parametreleri gerekli'
+    });
+  }
+  
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı'
+    });
+  }
+  
+  // Doğrudan yanıt dön
+  return res.status(200).json({
+    status: 'success',
+    source: 'test_data',
+    message: 'API isteği alındı (Query ile)',
+    params: {
+      cityId,
+      startDate,
+      endDate
+    }
+  });
 });
 
 app.get('/api/prayer_times/daterange', (req, res) => {
-  req.params = { ...req.params, cityId: req.query.cityId };
-  return prayerTimeController.getPrayerTimesByDateRange(req, res);
-});
-
-// 4. CityId'nin path parametresi olarak kullanıldığı yeni tarih aralığı endpointleri
-app.get('/api/prayers/daterange/:cityId', (req, res) => {
-  console.log('Özel Tarih Aralığı İsteği - Path Parametresi ile:');
-  console.log('URL:', req.originalUrl);
-  console.log('İstek Query Parametreleri:', req.query);
-  console.log('İstek Path Parametreleri:', req.params);
-  
-  const { cityId } = req.params;
-  const { startDate, endDate } = req.query;
-  
-  console.log(`🔍 TARİH ARALIĞI (ÖZEL) => İlçe Kodu: ${cityId}, Başlangıç: ${startDate}, Bitiş: ${endDate}`);
-  
-  // Tüm parametrelerin varlığını kontrol et
-  if (!cityId || !startDate || !endDate) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'İlçe ID, başlangıç tarihi ve bitiş tarihi parametreleri gerekli',
-      received: {
-        cityId: cityId || null,
-        startDate: startDate || null,
-        endDate: endDate || null
-      }
-    });
-  }
-  
-  // Tarih formatı kontrolü
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı',
-      received: {
-        startDate,
-        endDate
-      }
-    });
-  }
-  
-  // Diyanet API çağrısı yerine doğrudan yanıt dön
-  return res.status(200).json({
-    status: 'success',
-    source: 'test_data',
-    message: 'API isteği alındı fakat Diyanet API çağrısı engellendi',
-    params: {
-      cityId,
-      startDate,
-      endDate
-    }
-  });
-});
-
-// Diğer tarih aralığı endpoint'leri için de aynı özel fonksiyonu kullan
-app.get('/api/prayer-times/daterange/:cityId', (req, res) => {
-  console.log('Özel Tarih Aralığı İsteği (prayer-times) - Path Parametresi ile:');
-  
-  const { cityId } = req.params;
-  const { startDate, endDate } = req.query;
-  
-  console.log(`🔍 TARİH ARALIĞI (ÖZEL) => İlçe Kodu: ${cityId}, Başlangıç: ${startDate}, Bitiş: ${endDate}`);
-  
-  // Parametrelerin varlığını kontrol et
-  if (!cityId || !startDate || !endDate) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'İlçe ID, başlangıç tarihi ve bitiş tarihi parametreleri gerekli',
-      received: {
-        cityId: cityId || null,
-        startDate: startDate || null,
-        endDate: endDate || null
-      }
-    });
-  }
-  
-  // Tarih formatı kontrolü
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı',
-      received: {
-        startDate,
-        endDate
-      }
-    });
-  }
-  
-  // Doğrudan yanıt dön
-  return res.status(200).json({
-    status: 'success',
-    source: 'test_data',
-    message: 'API isteği alındı fakat Diyanet API çağrısı engellendi',
-    params: {
-      cityId,
-      startDate,
-      endDate
-    }
-  });
-});
-
-app.get('/api/prayertimes/daterange/:cityId', (req, res) => {
-  // Parametreleri al
-  const { cityId } = req.params;
-  const { startDate, endDate } = req.query;
+  // Aynı işlemi yap
+  const { cityId, startDate, endDate } = req.query;
   
   if (!cityId || !startDate || !endDate) {
     return res.status(400).json({
       status: 'error',
-      message: 'İlçe ID, başlangıç tarihi ve bitiş tarihi parametreleri gerekli'
+      message: 'cityId, startDate ve endDate parametreleri gerekli'
     });
   }
   
@@ -230,7 +188,7 @@ app.get('/api/prayertimes/daterange/:cityId', (req, res) => {
   return res.status(200).json({
     status: 'success',
     source: 'test_data',
-    message: 'API isteği alındı fakat Diyanet API çağrısı engellendi',
+    message: 'API isteği alındı (Query ile)',
     params: {
       cityId,
       startDate,
@@ -239,15 +197,19 @@ app.get('/api/prayertimes/daterange/:cityId', (req, res) => {
   });
 });
 
-app.get('/api/prayer_times/daterange/:cityId', (req, res) => {
-  // Parametreleri al
-  const { cityId } = req.params;
+// ÖNEMLİ: daterange parametresiyle eşleşecek özel yol - bu yol ayrı bir tam path olarak tanımlanmalı
+app.get('/api/prayers/daterange/:custom_id', (req, res) => {
+  console.log('PATH PARAM Tarih Aralığı İsteği: ', req.params, req.query);
+  const { custom_id } = req.params; // daterange parameter
   const { startDate, endDate } = req.query;
   
-  if (!cityId || !startDate || !endDate) {
+  if (!custom_id || !startDate || !endDate) {
     return res.status(400).json({
       status: 'error',
-      message: 'İlçe ID, başlangıç tarihi ve bitiş tarihi parametreleri gerekli'
+      message: 'custom_id, startDate ve endDate parametreleri gerekli',
+      path: req.path,
+      params: req.params,
+      query: req.query
     });
   }
   
@@ -263,14 +225,119 @@ app.get('/api/prayer_times/daterange/:cityId', (req, res) => {
   return res.status(200).json({
     status: 'success',
     source: 'test_data',
-    message: 'API isteği alındı fakat Diyanet API çağrısı engellendi',
+    message: 'API isteği alındı (Path ile)',
     params: {
-      cityId,
+      cityId: custom_id,
       startDate,
       endDate
     }
   });
 });
+
+app.get('/api/prayer-times/daterange/:custom_id', (req, res) => {
+  console.log('PATH PARAM Tarih Aralığı İsteği (prayer-times): ', req.params, req.query);
+  const { custom_id } = req.params;
+  const { startDate, endDate } = req.query;
+  
+  if (!custom_id || !startDate || !endDate) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'custom_id, startDate ve endDate parametreleri gerekli'
+    });
+  }
+  
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı'
+    });
+  }
+  
+  // Doğrudan yanıt dön
+  return res.status(200).json({
+    status: 'success',
+    source: 'test_data',
+    message: 'API isteği alındı (Path ile)',
+    params: {
+      cityId: custom_id,
+      startDate,
+      endDate
+    }
+  });
+});
+
+app.get('/api/prayertimes/daterange/:custom_id', (req, res) => {
+  // Aynı işlemi yap
+  const { custom_id } = req.params;
+  const { startDate, endDate } = req.query;
+  
+  if (!custom_id || !startDate || !endDate) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'custom_id, startDate ve endDate parametreleri gerekli'
+    });
+  }
+  
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı'
+    });
+  }
+  
+  // Doğrudan yanıt dön
+  return res.status(200).json({
+    status: 'success',
+    source: 'test_data',
+    message: 'API isteği alındı (Path ile)',
+    params: {
+      cityId: custom_id,
+      startDate,
+      endDate
+    }
+  });
+});
+
+app.get('/api/prayer_times/daterange/:custom_id', (req, res) => {
+  // Aynı işlemi yap
+  const { custom_id } = req.params;
+  const { startDate, endDate } = req.query;
+  
+  if (!custom_id || !startDate || !endDate) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'custom_id, startDate ve endDate parametreleri gerekli'
+    });
+  }
+  
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Tarih formatı geçersiz. YYYY-MM-DD formatında olmalı'
+    });
+  }
+  
+  // Doğrudan yanıt dön
+  return res.status(200).json({
+    status: 'success',
+    source: 'test_data',
+    message: 'API isteği alındı (Path ile)',
+    params: {
+      cityId: custom_id,
+      startDate,
+      endDate
+    }
+  });
+});
+
+// NORMAL ENDPOINT'LER
+app.get('/api/prayers/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
+app.get('/api/prayer-times/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
+app.get('/api/prayertimes/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
+app.get('/api/prayer_times/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
 
 // 5. KONUM ENDPOINTLERİ (ÜLKE-ŞEHİR-İLÇE) 
 console.log('Konum endpointleri tanımlanıyor');
