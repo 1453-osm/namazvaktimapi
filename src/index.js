@@ -48,75 +48,11 @@ app.use('/api/cities', cityRoutes);
 // app.use('/api/prayertimes', prayerTimeRoutes);
 // app.use('/api/prayer_times', prayerTimeRoutes);
 
-// Doğrudan namaz vakti endpointleri tanımla
-app.get('/api/prayers/test', (req, res) => {
-  console.log('Namaz vakitleri test isteği alındı');
-  res.json({
-    status: 'success',
-    message: 'Namaz vakitleri API test başarılı',
-    time: new Date().toISOString()
-  });
-});
+// TÜM ENDPOINT'LERİ YENİDEN TANIMLIYORUM
+// ÖNEMLİ: Yönlendirme sorunlarını çözmek için tüm endpointleri sırayla tanımlıyorum
+console.log('Endpointler yeniden tanımlanıyor...');
 
-// Test endpoint'leri - underscore formatı (veritabanı isimlendirmesi ile uyumlu)
-app.get('/api/prayer_times/test', (req, res) => {
-  console.log('Prayer_Times (underscore) test isteği alındı');
-  res.json({
-    status: 'success',
-    message: 'Prayer_Times API test başarılı',
-    time: new Date().toISOString()
-  });
-});
-
-// Belirli bir ilçe ve tarih için namaz vakitlerini getir (doğrudan controller fonksiyonu)
-app.get('/api/prayers/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
-
-// Alternatif path: /api/prayer-times/:cityId/:date
-app.get('/api/prayer-times/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
-
-// Alternatif path: /api/prayertimes/:cityId/:date
-app.get('/api/prayertimes/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
-
-// Veritabanı ile uyumlu path: /api/prayer_times/:cityId/:date
-app.get('/api/prayer_times/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
-
-// Belirli bir ilçe için tarih aralığında namaz vakitlerini getir
-app.get('/api/prayers/range/:cityId', prayerTimeController.getPrayerTimesByDateRange);
-app.get('/api/prayer-times/range/:cityId', prayerTimeController.getPrayerTimesByDateRange);
-app.get('/api/prayertimes/range/:cityId', prayerTimeController.getPrayerTimesByDateRange);
-app.get('/api/prayer_times/range/:cityId', prayerTimeController.getPrayerTimesByDateRange);
-
-// Belirli bir ilçe için bayram namazı vakitlerini getir
-app.get('/api/prayers/eid/:cityId', prayerTimeController.getEidTimes);
-app.get('/api/prayer-times/eid/:cityId', prayerTimeController.getEidTimes);
-app.get('/api/prayertimes/eid/:cityId', prayerTimeController.getEidTimes);
-app.get('/api/prayer_times/eid/:cityId', prayerTimeController.getEidTimes);
-
-// Ana sayfa
-app.get('/', (req, res) => {
-  console.log('Ana sayfa isteği alındı');
-  res.json({ 
-    status: 'success', 
-    message: 'Namaz Vakti API çalışıyor',
-    env: process.env.NODE_ENV || 'development',
-    time: new Date().toISOString(),
-    endpoints: {
-      prayers: '/api/prayers/:cityId/:date',
-      prayer_times: '/api/prayer_times/:cityId/:date',
-      prayerRange: '/api/prayers/range/:cityId?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD',
-      prayer_timesRange: '/api/prayer_times/range/:cityId?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD',
-      eid: '/api/prayers/eid/:cityId',
-      eid_prayer_times: '/api/prayer_times/eid/:cityId',
-      countries: '/api/countries',
-      states: '/api/states',
-      statesByCountry: '/api/states?countryId=:countryId',
-      cities: '/api/cities',
-      citiesByState: '/api/cities?stateId=:stateId'
-    }
-  });
-});
-
-// API test rotaları
+// 1. TEST ENDPOINT'LERİ
 app.get('/api/test', (req, res) => {
   console.log('Test API isteği alındı');
   res.json({
@@ -126,42 +62,101 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-app.get('/api/prayer-times/test', (req, res) => {
-  console.log('Prayer Times test isteği alındı');
-  res.json({
-    status: 'success',
-    message: 'Prayer Times API test rotası çalışıyor',
-    time: new Date().toISOString()
-  });
-});
+// 2. NAMAZ VAKİTLERİ - TEKİL TARİH ENDPOINTLERİ
+console.log('Tekil tarih endpointleri tanımlanıyor');
+app.get('/api/prayers/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
+app.get('/api/prayer-times/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
+app.get('/api/prayertimes/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
+app.get('/api/prayer_times/:cityId/:date', prayerTimeController.getPrayerTimeByDate);
 
-app.get('/api/prayertimes/test', (req, res) => {
-  console.log('PrayerTimes (alternatif) test isteği alındı');
-  res.json({
-    status: 'success',
-    message: 'PrayerTimes alternatif API test rotası çalışıyor',
-    time: new Date().toISOString()
-  });
-});
+// 3. NAMAZ VAKİTLERİ - TARİH ARALIĞI ENDPOINTLERİ - ÖZEL OLARAK AYRILDI
+console.log('Tarih aralığı endpointleri tanımlanıyor');
 
-// Veritabanı bağlantı testi rotası
-app.get('/api/db-test', async (req, res) => {
-  console.log('Veritabanı bağlantı testi isteği alındı');
-  try {
-    const isConnected = await testConnection();
-    res.json({
-      status: isConnected ? 'success' : 'error',
-      message: isConnected ? 'Veritabanı bağlantısı başarılı' : 'Veritabanı bağlantısı başarısız',
-      time: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Veritabanı bağlantı testi hatası:', error.message);
-    res.status(500).json({
+// Tarih aralığı için özel endpoint - City ID'yi direkt query string'den al
+app.get('/api/prayers/daterange', (req, res) => {
+  console.log('Prayers DateRange API (query ile): ', req.query);
+  const { cityId, startDate, endDate } = req.query;
+  
+  if (!cityId) {
+    return res.status(400).json({
       status: 'error',
-      message: 'Veritabanı bağlantı testi başarısız: ' + error.message,
-      time: new Date().toISOString()
+      message: 'cityId parametresi gerekli',
+      path: req.path,
+      query: req.query
     });
   }
+  
+  // cityId'yi params objesine ekleyerek controller'a aktar
+  req.params = { ...req.params, cityId };
+  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+});
+
+// Alternatif yazımlar
+app.get('/api/prayer-times/daterange', (req, res) => {
+  req.params = { ...req.params, cityId: req.query.cityId };
+  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+});
+
+app.get('/api/prayertimes/daterange', (req, res) => {
+  req.params = { ...req.params, cityId: req.query.cityId };
+  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+});
+
+app.get('/api/prayer_times/daterange', (req, res) => {
+  req.params = { ...req.params, cityId: req.query.cityId };
+  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+});
+
+// 4. CityId'nin path parametresi olarak kullanıldığı yeni tarih aralığı endpointleri
+app.get('/api/prayers/daterange/:cityId', (req, res) => {
+  console.log('Prayers DateRange API (path param ile): ', req.params);
+  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+});
+
+app.get('/api/prayer-times/daterange/:cityId', (req, res) => {
+  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+});
+
+app.get('/api/prayertimes/daterange/:cityId', (req, res) => {
+  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+});
+
+app.get('/api/prayer_times/daterange/:cityId', (req, res) => {
+  return prayerTimeController.getPrayerTimesByDateRange(req, res);
+});
+
+// 5. KONUM ENDPOINTLERİ (ÜLKE-ŞEHİR-İLÇE) 
+console.log('Konum endpointleri tanımlanıyor');
+app.use('/api/countries', countryRoutes);
+app.use('/api/states', stateRoutes);
+app.use('/api/cities', cityRoutes);
+
+// 6. ANA SAYFA
+app.get('/', (req, res) => {
+  console.log('Ana sayfa isteği alındı');
+  res.json({ 
+    status: 'success', 
+    message: 'Namaz Vakti API çalışıyor',
+    env: process.env.NODE_ENV || 'development',
+    time: new Date().toISOString(),
+    endpoints: {
+      // Tekil tarih sorguları
+      prayers: '/api/prayers/:cityId/:date',
+      prayer_times: '/api/prayer_times/:cityId/:date',
+      // Tarih aralığı sorguları - Query Parametreleriyle
+      prayerRangeQuery: '/api/prayers/daterange?cityId=CODE&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD',
+      prayer_timesRangeQuery: '/api/prayer_times/daterange?cityId=CODE&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD',
+      // Tarih aralığı sorguları - Path Parametresiyle
+      prayerRangePath: '/api/prayers/daterange/:cityId?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD',
+      prayer_timesRangePath: '/api/prayer_times/daterange/:cityId?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD',
+      // Konum endpointleri
+      countries: '/api/countries',
+      states: '/api/states',
+      statesByCountry: '/api/states?countryId=:countryId',
+      cities: '/api/cities',
+      citiesByState: '/api/cities?stateId=:stateId'
+    }
+  });
 });
 
 // API Durum kontrolü rotası - basit bir 200 OK yanıt döner

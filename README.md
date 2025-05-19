@@ -20,7 +20,6 @@ Bu API, Diyanet İşleri Başkanlığı'nın sunduğu namaz vakitleri verilerini
 
 - `/api/prayers/:cityId/:date` - Belirli bir ilçe ve tarih için namaz vakitleri
 - `/api/prayers/range/:cityId?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` - Tarih aralığında namaz vakitleri
-- `/api/prayers/eid/:cityId` - Bayram namazı vakitleri
 
 ### Yer Bilgisi Endpoint'leri
 
@@ -36,11 +35,42 @@ Bu API, Diyanet İşleri Başkanlığı'nın sunduğu namaz vakitleri verilerini
 - `/api/db-test` - Veritabanı bağlantı testi
 - `/api/db-schema?table=table_name` - Belirli bir tablonun şemasını görüntüler
 
-## Örnek Kullanım
+## 🚨 ÖNEMLİ DUYURU: TARİH ARALIĞI SORGULARI
+
+Namaz vakitlerini tarih aralığında sorgulamak için aşağıdaki yeni endpointleri kullanınız:
+
+### ✅ Doğru Kullanım:
+
+```
+/api/prayers/daterange/9400?startDate=2025-05-19&endDate=2025-07-19
+/api/prayer_times/daterange/9400?startDate=2025-05-19&endDate=2025-07-19
+```
+
+VEYA
+
+```
+/api/prayers/daterange?cityId=9400&startDate=2025-05-19&endDate=2025-07-19
+/api/prayer_times/daterange?cityId=9400&startDate=2025-05-19&endDate=2025-07-19
+```
+
+### ❌ Hatalı Kullanım (KULLANMAYIN):
+
+```
+/api/prayers/range/9400?startDate=2025-05-19&endDate=2025-07-19
+/api/prayer_times/range/9400?startDate=2025-05-19&endDate=2025-07-19
+```
+
+### Örnek Kullanım:
 
 ```javascript
-// Belirli bir ilçe ve tarih için namaz vakitleri
-fetch('https://namazvaktimapi-nqetjxikca-ue.a.run.app/api/prayers/10658/2025-01-01')
+// Belirli bir ilçe için tarih aralığında namaz vakitlerini getir (yeni endpoint)
+fetch('https://namazvaktimapi-nqetjxikca-ue.a.run.app/api/prayers/daterange/9400?startDate=2025-05-19&endDate=2025-07-19')
+  .then(response => response.json())
+  .then(data => console.log(data))
+  .catch(error => console.error('Hata:', error));
+
+// VEYA tüm parametreleri query string'de kullanarak
+fetch('https://namazvaktimapi-nqetjxikca-ue.a.run.app/api/prayers/daterange?cityId=9400&startDate=2025-05-19&endDate=2025-07-19')
   .then(response => response.json())
   .then(data => console.log(data))
   .catch(error => console.error('Hata:', error));
@@ -50,8 +80,6 @@ fetch('https://namazvaktimapi-nqetjxikca-ue.a.run.app/api/prayers/10658/2025-01-
 
 - Ülke, şehir ve ilçe bilgileri yönetimi
 - Namaz vakitleri sorgulama
-- Bayram namazı vakitleri
-- Günlük dini içerikler
 - Diyanet API entegrasyonu ile gerçek zamanlı veri
 - Tüm konumlar için yıllık namaz vakitleri verisi
 
@@ -152,7 +180,6 @@ Bu strateji sayesinde:
 
 - `GET /api/prayer-times/:cityId/:date` - Belirli bir ilçe ve tarih için namaz vakitleri
 - `GET /api/prayer-times/:cityId/range?startDate=:startDate&endDate=:endDate` - Belirli bir ilçe için tarih aralığında namaz vakitleri
-- `GET /api/prayer-times/:cityId/eid` - Belirli bir ilçe için bayram namazı vakitleri
 
 ## Veritabanı Şeması
 
@@ -162,8 +189,6 @@ Ana veritabanı tabloları:
 - `states` - Şehir bilgileri
 - `cities` - İlçe bilgileri
 - `prayer_times` - Namaz vakitleri
-- `eid_times` - Bayram namazı vakitleri
-- `daily_contents` - Günlük dini içerikler
 - `update_logs` - Güncelleme işlemleri kayıtları
 
 ## Diyanet API Entegrasyonu
