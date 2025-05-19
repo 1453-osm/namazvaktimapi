@@ -49,31 +49,9 @@ CREATE TABLE IF NOT EXISTS prayer_times (
   UNIQUE (city_id, prayer_date)
 );
 
--- Bayram namazı vakitleri tablosu
-CREATE TABLE IF NOT EXISTS eid_times (
-  id SERIAL PRIMARY KEY,
-  city_id INTEGER NOT NULL,
-  eid_date DATE NOT NULL,
-  eid_time VARCHAR(10) NOT NULL,
-  eid_type VARCHAR(50) NOT NULL, -- 'RAMADAN', 'SACRIFICE' gibi
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (city_id) REFERENCES cities(id) ON DELETE CASCADE,
-  UNIQUE (city_id, eid_date, eid_type)
-);
+-- [Bayram namazı vakitleri tablosu kaldırıldı]
 
--- Günlük içerik tablosu (ayetler, hadisler vb.)
-CREATE TABLE IF NOT EXISTS daily_contents (
-  id SERIAL PRIMARY KEY,
-  content_date DATE NOT NULL,
-  content_type VARCHAR(50) NOT NULL, -- 'VERSE', 'HADITH', 'PRAYER' gibi
-  title VARCHAR(255),
-  content TEXT NOT NULL,
-  source VARCHAR(255),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (content_date, content_type)
-);
+-- [Günlük içerik tablosu kaldırıldı]
 
 -- Güncelleme kayıtları tablosu
 CREATE TABLE IF NOT EXISTS update_logs (
@@ -122,17 +100,9 @@ BEGIN
     FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_eid_times_timestamp') THEN
-    CREATE TRIGGER update_eid_times_timestamp
-    BEFORE UPDATE ON eid_times
-    FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
-  END IF;
+  -- [Bayram namazı vakitleri trigger kodu kaldırıldı]
 
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_daily_contents_timestamp') THEN
-    CREATE TRIGGER update_daily_contents_timestamp
-    BEFORE UPDATE ON daily_contents
-    FOR EACH ROW EXECUTE PROCEDURE update_timestamp();
-  END IF;
+  -- [Günlük içerik trigger kodu kaldırıldı]
 
   IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_logs_timestamp') THEN
     CREATE TRIGGER update_logs_timestamp

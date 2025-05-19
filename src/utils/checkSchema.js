@@ -179,29 +179,8 @@ async function checkAndCreateSchema() {
       console.log('Namaz vakitleri tablosu oluşturuldu');
     }
     
-    // Eid Times tablosunun varlığını kontrol et
-    const eidTimesExists = tables.rows.some(row => row.name === 'eid_times');
-    if (!eidTimesExists) {
-      console.log('Bayram vakitleri tablosu bulunamadı, oluşturuluyor...');
-      
-      // Bayram vakitleri tablosunu oluştur
-      await execute(`
-        CREATE TABLE eid_times (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          city_id INTEGER NOT NULL,
-          eid_date DATE NOT NULL,
-          eid_time TEXT NOT NULL,
-          eid_type TEXT NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE(city_id, eid_date, eid_type)
-        )
-      `);
-      console.log('Bayram vakitleri tablosu oluşturuldu');
-    }
-    
     // Mevcut tablo şemalarını incele
-    for (const table of ['countries', 'states', 'cities', 'prayer_times', 'eid_times']) {
+    for (const table of ['countries', 'states', 'cities', 'prayer_times']) {
       if (tables.rows.some(row => row.name === table)) {
         await inspectTableSchema(table);
       }

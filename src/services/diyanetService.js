@@ -380,78 +380,7 @@ class DiyanetService {
         }
     }
 
-    async getDailyContent(retryCount = 0) {
-        try {
-            if (!this.token) {
-                await this.login();
-            }
-            
-            console.log('Günlük içerik alınıyor...');
-            
-            // İstek öncesi hız sınırlaması uygula
-            await this.throttleRequest();
-            
-            const response = await this.axiosInstance.get(`${this.baseURL}/api/DailyContent`, {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`
-                }
-            });
-            
-            if (response.data && response.data.data) {
-                console.log('Günlük içerik başarıyla alındı');
-                return response.data.data;
-            } else if (response.data) {
-                console.log('Günlük içerik başarıyla alındı (farklı format)');
-                return response.data;
-            } else {
-                console.error('Günlük içerik yanıtı geçersiz:', response.data);
-                return null;
-            }
-        } catch (error) {
-            console.error('Günlük içerik alınırken hata:', error.message);
-            
-            if (error.response) {
-                console.error('Hata durumu:', error.response.status);
-                
-                // 401 Unauthorized - Token yenileme gerekiyor
-                if (error.response.status === 401 && retryCount < 3) {
-                    console.log('Token yenileniyor ve istek tekrarlanıyor...');
-                    await this.refreshAccessToken();
-                    // Token yeniledikten sonra kısa bir bekleme yaparak tekrar dene
-                    await this.sleep(300);
-                    return this.getDailyContent(retryCount + 1);
-                }
-                
-                // 429 Too Many Requests - Rate limiting
-                if (error.response.status === 429 && retryCount < 5) {
-                    const waitTime = Math.pow(2, retryCount) * 1000; // Üssel geri çekilme
-                    console.log(`Rate limit aşıldı, ${waitTime/1000} saniye bekleniyor...`);
-                    await this.sleep(waitTime);
-                    // Daha uzun bekleme süresi ile tekrar dene
-                    this.minRequestInterval = Math.min(this.minRequestInterval * 1.5, 1000); // Rate limiti artır
-                    return this.getDailyContent(retryCount + 1);
-                }
-                
-                // Diğer HTTP hataları
-                if (retryCount < 3) {
-                    const waitTime = 1000 * (retryCount + 1);
-                    console.log(`HTTP ${error.response.status} hatası, ${waitTime/1000} saniye bekleniyor...`);
-                    await this.sleep(waitTime);
-                    return this.getDailyContent(retryCount + 1);
-                }
-            }
-            
-            // Ağ hataları için
-            if (retryCount < 3 && !error.response) {
-                const waitTime = 1000 * (retryCount + 1);
-                console.log(`Ağ hatası, ${waitTime/1000} saniye bekleniyor...`);
-                await this.sleep(waitTime);
-                return this.getDailyContent(retryCount + 1);
-            }
-            
-            throw error;
-        }
-    }
+    // [Günlük içerik metodu kaldırıldı]
 }
 
 module.exports = new DiyanetService(); 

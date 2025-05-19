@@ -49,31 +49,9 @@ CREATE TABLE IF NOT EXISTS prayer_times (
   UNIQUE (city_id, date)
 );
 
--- Bayram namazı vakitleri tablosu
-CREATE TABLE IF NOT EXISTS eid_times (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  city_id INTEGER NOT NULL,
-  eid_date DATE NOT NULL,
-  eid_time TEXT NOT NULL,
-  eid_type TEXT NOT NULL, -- 'RAMADAN', 'SACRIFICE' gibi
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (city_id) REFERENCES cities(id) ON DELETE CASCADE,
-  UNIQUE (city_id, eid_date, eid_type)
-);
+-- [Bayram namazı vakitleri tablosu kaldırıldı]
 
--- Günlük içerik tablosu (ayetler, hadisler vb.)
-CREATE TABLE IF NOT EXISTS daily_contents (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  content_date DATE NOT NULL,
-  content_type TEXT NOT NULL, -- 'VERSE', 'HADITH', 'PRAYER' gibi
-  content TEXT NOT NULL,
-  source TEXT,
-  day_of_year INTEGER,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (content_date, content_type)
-);
+-- [Günlük içerik tablosu kaldırıldı]
 
 -- Güncelleme kayıtları tablosu
 CREATE TABLE IF NOT EXISTS update_logs (

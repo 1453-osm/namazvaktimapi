@@ -163,15 +163,9 @@ const getPrayerTimeDateRange = async () => {
   };
 };
 
-// Günlük içerik getir
-const getDailyContent = async () => {
-  return makeApiRequest('/api/DailyContent');
-};
+// [Günlük içerik kodu kaldırıldı]
 
-// Bayram bilgisini getir
-const getEid = async (cityId) => {
-  return makeApiRequest(`/api/PrayerTime/Eid/${cityId}`);
-};
+// [Bayram bilgisini getirme kodu kaldırıldı]
 
 // Belirli bir ilçe için tarih aralığında namaz vakitlerini getir
 const getPrayerTimesByDateRangeAndCity = async (cityId, startDate, endDate) => {
@@ -207,7 +201,5 @@ module.exports = {
   getStates,
   getCities,
   getPrayerTimeDateRange,
-  getDailyContent,
-  getEid,
   getPrayerTimesByDateRangeAndCity
 }; 

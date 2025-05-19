@@ -401,55 +401,7 @@ const deletePrayerTimesBeforeDate = async (date) => {
   }
 };
 
-// Bayram namazı vakti kaydet
-const createEidTime = async (cityId, eidDate, eidTime, eidType) => {
-  const query = `
-    INSERT INTO eid_times (city_id, eid_date, eid_time, eid_type)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT (city_id, eid_date, eid_type) 
-    DO UPDATE SET eid_time = ?
-    RETURNING *
-  `;
-  
-  try {
-    const result = await db.query(query, [cityId, eidDate, eidTime, eidType, eidTime]);
-    return result.rows[0];
-  } catch (error) {
-    console.error(`Bayram namazı vakti kaydı hatası (ilçe: ${cityId}, tarih: ${eidDate}):`, error);
-    throw error;
-  }
-};
-
-// Bayram namazı vakitlerini getir
-const getEidTimes = async (cityId) => {
-  const query = `
-    SELECT 
-      et.*,
-      c.name as city_name,
-      s.name as state_name,
-      co.name as country_name
-    FROM 
-      eid_times et
-    LEFT JOIN 
-      cities c ON et.city_id = c.id
-    LEFT JOIN 
-      states s ON c.state_id = s.id
-    LEFT JOIN 
-      countries co ON s.country_id = co.id
-    WHERE 
-      et.city_id = ? OR c.code = ?
-    ORDER BY 
-      et.eid_date ASC
-  `;
-  
-  try {
-    const result = await db.query(query, [cityId, cityId]);
-    return result.rows;
-  } catch (error) {
-    console.error(`Bayram namazı vakitleri sorgulama hatası (ilçe: ${cityId}):`, error);
-    throw error;
-  }
-};
+// [Bayram namazı vakitleri fonksiyonları kaldırıldı]
 
 module.exports = {
   createPrayerTime,
@@ -458,7 +410,5 @@ module.exports = {
   deletePrayerTimeByDate,
   deletePrayerTimesBeforeDate,
   formatPrayerTimeFromAPI,
-  createPrayerTimesInBulk,
-  createEidTime,
-  getEidTimes
+  createPrayerTimesInBulk
 }; 

@@ -4,16 +4,6 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
-    inputs:
-      deployment_type:
-        description: 'Dağıtım türü'
-        required: true
-        default: 'production'
-        type: 'choice'
-        options:
-          - 'production'
-          - 'minimal'
-          - 'starter'
 
 env:
   PROJECT_ID: namazvaktimapi-1453
@@ -52,64 +42,33 @@ jobs:
       - name: Set deployment variables
         id: vars
         run: |
-          DEPLOYMENT_TYPE="${{ github.event.inputs.deployment_type || 'production' }}"
-          echo "DEPLOYMENT_TYPE=$DEPLOYMENT_TYPE" >> $GITHUB_ENV
-          
-          if [ "$DEPLOYMENT_TYPE" = "production" ]; then
-            echo "DOCKERFILE=Dockerfile" >> $GITHUB_ENV
-            echo "MEMORY=512Mi" >> $GITHUB_ENV
-            echo "CPU=1" >> $GITHUB_ENV
-            echo "MIN_INSTANCES=0" >> $GITHUB_ENV
-            echo "MAX_INSTANCES=2" >> $GITHUB_ENV
-            echo "USE_SECRETS=true" >> $GITHUB_ENV
-            echo "SERVICE_SUFFIX=" >> $GITHUB_ENV
-          elif [ "$DEPLOYMENT_TYPE" = "minimal" ]; then
-            echo "DOCKERFILE=Dockerfile.minimal" >> $GITHUB_ENV
-            echo "MEMORY=256Mi" >> $GITHUB_ENV
-            echo "CPU=1" >> $GITHUB_ENV
-            echo "MIN_INSTANCES=0" >> $GITHUB_ENV
-            echo "MAX_INSTANCES=1" >> $GITHUB_ENV
-            echo "USE_SECRETS=false" >> $GITHUB_ENV
-            echo "SERVICE_SUFFIX=-minimal" >> $GITHUB_ENV
-          elif [ "$DEPLOYMENT_TYPE" = "starter" ]; then
-            echo "DOCKERFILE=Dockerfile.starter" >> $GITHUB_ENV
-            echo "MEMORY=256Mi" >> $GITHUB_ENV
-            echo "CPU=1" >> $GITHUB_ENV
-            echo "MIN_INSTANCES=0" >> $GITHUB_ENV
-            echo "MAX_INSTANCES=1" >> $GITHUB_ENV
-            echo "USE_SECRETS=false" >> $GITHUB_ENV
-            echo "SERVICE_SUFFIX=-starter" >> $GITHUB_ENV
-          fi
-          
-          echo "IMAGE_NAME=gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}${{ env.SERVICE_SUFFIX }}:${{ github.sha }}" >> $GITHUB_ENV
-          echo "FULL_SERVICE_NAME=${{ env.SERVICE_NAME }}${{ env.SERVICE_SUFFIX }}" >> $GITHUB_ENV
+          echo "IMAGE_NAME=gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" >> $GITHUB_ENV
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ${{ env.DOCKERFILE }}
+          file: Dockerfile
           push: true
           tags: ${{ env.IMAGE_NAME }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Deploy to Cloud Run (with secrets)
-        if: env.USE_SECRETS == 'true'
+      - name: Deploy to Cloud Run
         run: |
           # Servis hesabı bilgilerini log'a yaz
           SERVICE_ACCOUNT_EMAIL=$(gcloud config get-value account)
           echo "Kullanılan servis hesabı: $SERVICE_ACCOUNT_EMAIL"
           
-          # Compute hesabı belirtmeden deployment
-          gcloud run deploy ${{ env.FULL_SERVICE_NAME }} \
+          # Deployment
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
             --image ${{ env.IMAGE_NAME }} \
             --platform managed \
             --region ${{ env.REGION }} \
-            --memory ${{ env.MEMORY }} \
-            --cpu ${{ env.CPU }} \
-            --min-instances ${{ env.MIN_INSTANCES }} \
-            --max-instances ${{ env.MAX_INSTANCES }} \
+            --memory 512Mi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 2 \
             --allow-unauthenticated \
             --set-env-vars="NODE_ENV=production" \
             --set-secrets="TURSO_DATABASE_URL=turso-database-url:latest,TURSO_AUTH_TOKEN=turso-auth-token:latest" \
@@ -117,35 +76,12 @@ jobs:
             --port=8080 \
             --timeout=60s \
             --quiet
-
-      - name: Deploy to Cloud Run (without secrets)
-        if: env.USE_SECRETS == 'false'
-        run: |
-          # Servis hesabı bilgilerini log'a yaz
-          SERVICE_ACCOUNT_EMAIL=$(gcloud config get-value account)
-          echo "Kullanılan servis hesabı: $SERVICE_ACCOUNT_EMAIL"
-          
-          # Compute hesabı belirtmeden deployment
-          gcloud run deploy ${{ env.FULL_SERVICE_NAME }} \
-            --image ${{ env.IMAGE_NAME }} \
-            --platform managed \
-            --region ${{ env.REGION }} \
-            --memory ${{ env.MEMORY }} \
-            --cpu ${{ env.CPU }} \
-            --min-instances ${{ env.MIN_INSTANCES }} \
-            --max-instances ${{ env.MAX_INSTANCES }} \
-            --allow-unauthenticated \
-            --set-env-vars="NODE_ENV=production" \
-            --ingress=all \
-            --port=8080 \
-            --timeout=60s \
-            --quiet
       
       - name: Verify Deployment
         run: |
-          gcloud run services describe ${{ env.FULL_SERVICE_NAME }} \
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
             --platform managed \
             --region ${{ env.REGION }} \
-            --format 'value(status.url)'
+            --format 'value(status.url)')
           
-          echo "Dağıtım başarıyla tamamlandı! Servis çalışıyor: ${{ env.FULL_SERVICE_NAME }}" 
+          echo "Dağıtım başarıyla tamamlandı! Servis URL: $SERVICE_URL" 

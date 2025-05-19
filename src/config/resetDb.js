@@ -4,8 +4,6 @@ async function resetDatabase() {
     try {
         // Mevcut tabloları sil
         await pool.query(`
-            DROP TABLE IF EXISTS daily_contents CASCADE;
-            DROP TABLE IF EXISTS eid_times CASCADE;
             DROP TABLE IF EXISTS prayer_times CASCADE;
             DROP TABLE IF EXISTS cities CASCADE;
             DROP TABLE IF EXISTS states CASCADE;
