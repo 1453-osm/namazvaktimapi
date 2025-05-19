@@ -88,17 +88,39 @@ app.get('/api/prayers/daterange', (req, res) => {
     });
   }
   
-  // Doğrudan yanıt dön
-  return res.status(200).json({
-    status: 'success',
-    source: 'test_data',
-    message: 'API isteği alındı (Query ile)',
-    params: {
-      cityId,
-      startDate,
-      endDate
-    }
-  });
+  // Veritabanından namaz vakti verilerini al
+  const prayerTimeModel = require('./models/prayerTimeModel');
+  
+  prayerTimeModel.getPrayerTimesByDateRange(cityId, startDate, endDate)
+    .then(dbResults => {
+      console.log(`✅ Veritabanından ${dbResults?.length || 0} adet namaz vakti bulundu`);
+      
+      if (dbResults && dbResults.length > 0) {
+        return res.status(200).json({
+          status: 'success',
+          source: 'database',
+          data: dbResults
+        });
+      } else {
+        console.log(`⚠️ Veritabanında ilgili tarih aralığında veri bulunamadı`);
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı',
+          params: {
+            cityId,
+            startDate,
+            endDate
+          }
+        });
+      }
+    })
+    .catch(error => {
+      console.error(`❌ Veritabanı sorgu hatası:`, error.message);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Veritabanı sorgusu sırasında bir hata oluştu: ' + error.message
+      });
+    });
 });
 
 app.get('/api/prayer-times/daterange', (req, res) => {
@@ -120,17 +142,34 @@ app.get('/api/prayer-times/daterange', (req, res) => {
     });
   }
   
-  // Doğrudan yanıt dön
-  return res.status(200).json({
-    status: 'success',
-    source: 'test_data',
-    message: 'API isteği alındı (Query ile)',
-    params: {
-      cityId,
-      startDate,
-      endDate
-    }
-  });
+  // Veritabanından namaz vakti verilerini al
+  const prayerTimeModel = require('./models/prayerTimeModel');
+  
+  prayerTimeModel.getPrayerTimesByDateRange(cityId, startDate, endDate)
+    .then(dbResults => {
+      console.log(`✅ Veritabanından ${dbResults?.length || 0} adet namaz vakti bulundu`);
+      
+      if (dbResults && dbResults.length > 0) {
+        return res.status(200).json({
+          status: 'success',
+          source: 'database',
+          data: dbResults
+        });
+      } else {
+        console.log(`⚠️ Veritabanında ilgili tarih aralığında veri bulunamadı`);
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı'
+        });
+      }
+    })
+    .catch(error => {
+      console.error(`❌ Veritabanı sorgu hatası:`, error.message);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Veritabanı sorgusu sırasında bir hata oluştu: ' + error.message
+      });
+    });
 });
 
 app.get('/api/prayertimes/daterange', (req, res) => {
@@ -152,17 +191,30 @@ app.get('/api/prayertimes/daterange', (req, res) => {
     });
   }
   
-  // Doğrudan yanıt dön
-  return res.status(200).json({
-    status: 'success',
-    source: 'test_data',
-    message: 'API isteği alındı (Query ile)',
-    params: {
-      cityId,
-      startDate,
-      endDate
-    }
-  });
+  // Veritabanından namaz vakti verilerini al
+  const prayerTimeModel = require('./models/prayerTimeModel');
+  
+  prayerTimeModel.getPrayerTimesByDateRange(cityId, startDate, endDate)
+    .then(dbResults => {
+      if (dbResults && dbResults.length > 0) {
+        return res.status(200).json({
+          status: 'success',
+          source: 'database',
+          data: dbResults
+        });
+      } else {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı'
+        });
+      }
+    })
+    .catch(error => {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Veritabanı sorgusu sırasında bir hata oluştu: ' + error.message
+      });
+    });
 });
 
 app.get('/api/prayer_times/daterange', (req, res) => {
@@ -184,17 +236,30 @@ app.get('/api/prayer_times/daterange', (req, res) => {
     });
   }
   
-  // Doğrudan yanıt dön
-  return res.status(200).json({
-    status: 'success',
-    source: 'test_data',
-    message: 'API isteği alındı (Query ile)',
-    params: {
-      cityId,
-      startDate,
-      endDate
-    }
-  });
+  // Veritabanından namaz vakti verilerini al
+  const prayerTimeModel = require('./models/prayerTimeModel');
+  
+  prayerTimeModel.getPrayerTimesByDateRange(cityId, startDate, endDate)
+    .then(dbResults => {
+      if (dbResults && dbResults.length > 0) {
+        return res.status(200).json({
+          status: 'success',
+          source: 'database',
+          data: dbResults
+        });
+      } else {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı'
+        });
+      }
+    })
+    .catch(error => {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Veritabanı sorgusu sırasında bir hata oluştu: ' + error.message
+      });
+    });
 });
 
 // ÖNEMLİ: daterange parametresiyle eşleşecek özel yol - bu yol ayrı bir tam path olarak tanımlanmalı
@@ -221,17 +286,39 @@ app.get('/api/prayers/daterange/:custom_id', (req, res) => {
     });
   }
   
-  // Doğrudan yanıt dön
-  return res.status(200).json({
-    status: 'success',
-    source: 'test_data',
-    message: 'API isteği alındı (Path ile)',
-    params: {
-      cityId: custom_id,
-      startDate,
-      endDate
-    }
-  });
+  // Veritabanından namaz vakti verilerini al
+  const prayerTimeModel = require('./models/prayerTimeModel');
+  
+  prayerTimeModel.getPrayerTimesByDateRange(custom_id, startDate, endDate)
+    .then(dbResults => {
+      console.log(`✅ Veritabanından ${dbResults?.length || 0} adet namaz vakti bulundu`);
+      
+      if (dbResults && dbResults.length > 0) {
+        return res.status(200).json({
+          status: 'success',
+          source: 'database',
+          data: dbResults
+        });
+      } else {
+        console.log(`⚠️ Veritabanında ilgili tarih aralığında veri bulunamadı`);
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı',
+          params: {
+            cityId: custom_id,
+            startDate,
+            endDate
+          }
+        });
+      }
+    })
+    .catch(error => {
+      console.error(`❌ Veritabanı sorgu hatası:`, error.message);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Veritabanı sorgusu sırasında bir hata oluştu: ' + error.message
+      });
+    });
 });
 
 app.get('/api/prayer-times/daterange/:custom_id', (req, res) => {
@@ -254,17 +341,34 @@ app.get('/api/prayer-times/daterange/:custom_id', (req, res) => {
     });
   }
   
-  // Doğrudan yanıt dön
-  return res.status(200).json({
-    status: 'success',
-    source: 'test_data',
-    message: 'API isteği alındı (Path ile)',
-    params: {
-      cityId: custom_id,
-      startDate,
-      endDate
-    }
-  });
+  // Veritabanından namaz vakti verilerini al
+  const prayerTimeModel = require('./models/prayerTimeModel');
+  
+  prayerTimeModel.getPrayerTimesByDateRange(custom_id, startDate, endDate)
+    .then(dbResults => {
+      console.log(`✅ Veritabanından ${dbResults?.length || 0} adet namaz vakti bulundu`);
+      
+      if (dbResults && dbResults.length > 0) {
+        return res.status(200).json({
+          status: 'success',
+          source: 'database',
+          data: dbResults
+        });
+      } else {
+        console.log(`⚠️ Veritabanında ilgili tarih aralığında veri bulunamadı`);
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı'
+        });
+      }
+    })
+    .catch(error => {
+      console.error(`❌ Veritabanı sorgu hatası:`, error.message);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Veritabanı sorgusu sırasında bir hata oluştu: ' + error.message
+      });
+    });
 });
 
 app.get('/api/prayertimes/daterange/:custom_id', (req, res) => {
@@ -287,17 +391,30 @@ app.get('/api/prayertimes/daterange/:custom_id', (req, res) => {
     });
   }
   
-  // Doğrudan yanıt dön
-  return res.status(200).json({
-    status: 'success',
-    source: 'test_data',
-    message: 'API isteği alındı (Path ile)',
-    params: {
-      cityId: custom_id,
-      startDate,
-      endDate
-    }
-  });
+  // Veritabanından namaz vakti verilerini al
+  const prayerTimeModel = require('./models/prayerTimeModel');
+  
+  prayerTimeModel.getPrayerTimesByDateRange(custom_id, startDate, endDate)
+    .then(dbResults => {
+      if (dbResults && dbResults.length > 0) {
+        return res.status(200).json({
+          status: 'success',
+          source: 'database',
+          data: dbResults
+        });
+      } else {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı'
+        });
+      }
+    })
+    .catch(error => {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Veritabanı sorgusu sırasında bir hata oluştu: ' + error.message
+      });
+    });
 });
 
 app.get('/api/prayer_times/daterange/:custom_id', (req, res) => {
@@ -320,17 +437,30 @@ app.get('/api/prayer_times/daterange/:custom_id', (req, res) => {
     });
   }
   
-  // Doğrudan yanıt dön
-  return res.status(200).json({
-    status: 'success',
-    source: 'test_data',
-    message: 'API isteği alındı (Path ile)',
-    params: {
-      cityId: custom_id,
-      startDate,
-      endDate
-    }
-  });
+  // Veritabanından namaz vakti verilerini al
+  const prayerTimeModel = require('./models/prayerTimeModel');
+  
+  prayerTimeModel.getPrayerTimesByDateRange(custom_id, startDate, endDate)
+    .then(dbResults => {
+      if (dbResults && dbResults.length > 0) {
+        return res.status(200).json({
+          status: 'success',
+          source: 'database',
+          data: dbResults
+        });
+      } else {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Belirtilen tarih aralığında namaz vakti verisi bulunamadı'
+        });
+      }
+    })
+    .catch(error => {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Veritabanı sorgusu sırasında bir hata oluştu: ' + error.message
+      });
+    });
 });
 
 // NORMAL ENDPOINT'LER
